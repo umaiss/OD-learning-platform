@@ -1,20 +1,41 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Float, Date
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Float, Date, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
 
 
+# Association table for Learner-Mentor many-to-many relationship
+# Must be defined before User and Learner models that reference it
+learner_mentor_association = Table(
+    'learner_mentors',
+    Base.metadata,
+    Column('learner_id', Integer, ForeignKey('learners.id'), primary_key=True),
+    Column('mentor_id', Integer, ForeignKey('users.id'), primary_key=True),
+    Column('assigned_at', DateTime(timezone=True), server_default=func.now()),
+    Column('is_active', Boolean, default=True)
+)
+
+
 class User(Base):
-    """User model"""
+    """User model for authentication"""
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)  # Hashed password
+    role = Column(String, nullable=False, index=True)  # learner, manager, mentor
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    learner = relationship("Learner", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    mentored_learners = relationship(
+        "Learner",
+        secondary=learner_mentor_association,
+        back_populates="mentors"
+    )
     skill_profiles = relationship("SkillProfile", back_populates="user")
     learning_paths = relationship("LearningPath", back_populates="user")
     missions = relationship("Mission", back_populates="user")
@@ -149,8 +170,8 @@ class Learner(Base):
     __tablename__ = "learners"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    role = Column(String, nullable=False)  # e.g., "developer", "designer", "manager"
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    professional_role = Column(String, nullable=False)  # e.g., "developer", "designer", "manager"
     experience_years = Column(Integer, default=0)
     skill_map = Column(JSON)  # JSON object mapping skills to levels
     strengths = Column(Text)  # Text description of strengths
@@ -159,6 +180,12 @@ class Learner(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    user = relationship("User", back_populates="learner")
+    mentors = relationship(
+        "User",
+        secondary=learner_mentor_association,
+        back_populates="mentored_learners"
+    )
     learning_plans = relationship("LearningPlan", back_populates="learner", cascade="all, delete-orphan")
     generated_content = relationship("GeneratedContent", back_populates="learner", cascade="all, delete-orphan")
     daily_missions = relationship("DailyMission", back_populates="learner", cascade="all, delete-orphan")

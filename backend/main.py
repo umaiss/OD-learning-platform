@@ -13,7 +13,9 @@ from routers import (
     content_router,
     missions_router,
     progress_router,
-    chatbot_router
+    chatbot_router,
+    auth_router,
+    mentor_router
 )
 
 # Initialize FastAPI app
@@ -41,12 +43,14 @@ app.include_router(chatbot.router, prefix=settings.api_v1_prefix)
 app.include_router(progress.router, prefix=settings.api_v1_prefix)
 
 # Include new routers
+app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(profile_router, prefix=settings.api_v1_prefix)
 app.include_router(learning_path_router, prefix=settings.api_v1_prefix)
 app.include_router(content_router, prefix=settings.api_v1_prefix)
 app.include_router(missions_router, prefix=settings.api_v1_prefix)
 app.include_router(progress_router, prefix=settings.api_v1_prefix)
 app.include_router(chatbot_router, prefix=settings.api_v1_prefix)
+app.include_router(mentor_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/")
