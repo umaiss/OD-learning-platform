@@ -4,7 +4,9 @@ from pydantic import BaseModel
 from typing import Dict
 from db.database import get_db
 from db.models import Learner
+from db.models import User
 from agents.skill_profiler import SkillProfiler, SkillProfileOutput
+from core.dependencies import get_current_user, verify_learner_access_helper
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 skill_profiler = SkillProfiler()
@@ -28,24 +30,20 @@ class GenerateProfileResponse(BaseModel):
 @router.post("/generate", response_model=GenerateProfileResponse, status_code=status.HTTP_201_CREATED)
 async def generate_profile(
     request: GenerateProfileRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate skill profile for a learner"""
+    """Generate skill profile for a learner (requires authentication)"""
     try:
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
+        
         # Call the agent
         result: SkillProfileOutput = await skill_profiler.generate_skill_profile(
             self_assessment=request.self_assessment,
             role=request.role,
             experience=request.experience
         )
-        
-        # Get or create learner
-        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
-        if not learner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Learner with id {request.learner_id} not found"
-            )
         
         # Update learner with profile data
         learner.skill_map = result.skill_map

@@ -87,3 +87,67 @@ def require_role(allowed_roles: list[str]):
             )
         return current_user
     return role_checker
+
+
+def verify_learner_access_helper(
+    learner_id: int,
+    current_user: User,
+    db: Session
+) -> Learner:
+    """
+    Helper function to verify that the current user has access to the specified learner.
+    - Learners can only access their own data
+    - Managers can access any learner's data
+    - Mentors can only access learners assigned to them
+    
+    Returns:
+        Learner: The learner object if access is granted
+    
+    Raises:
+        HTTPException: If access is denied
+    """
+    learner = db.query(Learner).filter(Learner.id == learner_id).first()
+    if not learner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner with id {learner_id} not found"
+        )
+    
+    # Managers have access to all learners
+    if current_user.role == "manager":
+        return learner
+    
+    # Learners can only access their own data
+    if current_user.role == "learner":
+        if learner.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own learner data"
+            )
+        return learner
+    
+    # Mentors can only access learners assigned to them
+    if current_user.role == "mentor":
+        from db.models import learner_mentor_association
+        from sqlalchemy import and_
+        
+        assignment = db.query(learner_mentor_association).filter(
+            and_(
+                learner_mentor_association.c.learner_id == learner_id,
+                learner_mentor_association.c.mentor_id == current_user.id,
+                learner_mentor_association.c.is_active == True
+            )
+        ).first()
+        
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this learner. The learner must be assigned to you."
+            )
+        return learner
+    
+    # Unknown role
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied"
+    )

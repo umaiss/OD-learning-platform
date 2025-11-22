@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from db.database import get_db
-from db.models import Learner, Progress
+from db.models import Learner, Progress, User
+from core.dependencies import get_current_user, verify_learner_access_helper
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 
@@ -27,17 +28,13 @@ class UpdateProgressResponse(BaseModel):
 @router.post("/update", response_model=UpdateProgressResponse, status_code=status.HTTP_200_OK)
 async def update_progress(
     request: UpdateProgressRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update learner progress"""
+    """Update learner progress (requires authentication)"""
     try:
-        # Verify learner exists
-        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
-        if not learner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Learner with id {request.learner_id} not found"
-            )
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
         
         # Get or create progress record
         progress = db.query(Progress).filter(

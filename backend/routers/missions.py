@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from typing import Dict, List
 from datetime import date
 from db.database import get_db
-from db.models import Learner, DailyMission
+from db.models import Learner, DailyMission, User
 from agents.missions import MissionGenerator, DailyMissionsOutput
+from core.dependencies import get_current_user, verify_learner_access_helper
 import json
 
 router = APIRouter(prefix="/missions", tags=["missions"])
@@ -30,17 +31,13 @@ class GenerateDailyMissionsResponse(BaseModel):
 @router.post("/daily", response_model=GenerateDailyMissionsResponse, status_code=status.HTTP_201_CREATED)
 async def generate_daily_missions(
     request: GenerateDailyMissionsRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate daily missions for a learner"""
+    """Generate daily missions for a learner (requires authentication)"""
     try:
-        # Verify learner exists
-        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
-        if not learner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Learner with id {request.learner_id} not found"
-            )
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
         
         # Call the agent
         result: DailyMissionsOutput = await mission_generator.generate_daily_missions(
