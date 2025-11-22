@@ -13,6 +13,7 @@ interface GenerateLearningPathRequest {
 
 interface GenerateLearningPathResponse {
     learner_id: number
+    learning_plan_id: number
     duration_weeks: number
     weekly_goals: string[]
     milestones: string[]
