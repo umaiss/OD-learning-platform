@@ -5,6 +5,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 interface SidebarItem {
   title: string
@@ -19,6 +21,7 @@ interface SidebarProps {
 
 export function Sidebar({ items, className }: SidebarProps) {
   const pathname = usePathname()
+  const user = useAuthStore(useShallow((state) => state.user))
 
   return (
     <div
@@ -68,10 +71,10 @@ export function Sidebar({ items, className }: SidebarProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">
-              User Name
+              {user?.name || "User Name"}
             </p>
             <p className="text-xs text-sidebar-foreground/60 truncate">
-              user@example.com
+              {user?.email || "user@example.com"}
             </p>
           </div>
         </div>

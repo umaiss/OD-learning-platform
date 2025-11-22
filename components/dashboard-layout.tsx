@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/ui/sidebar"
 import {
   HomeIcon,
@@ -12,6 +13,8 @@ import {
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { LogoutIcon } from "@/components/icons"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -51,7 +54,32 @@ const sidebarItems = [
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const router = useRouter()
+  const { user, isAuthenticated, logout } = useAuthStore(
+    useShallow((state) => ({
+      user: state.user,
+      isAuthenticated: state.isAuthenticated,
+      logout: state.logout,
+    }))
+  )
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    // Redirect to login if not authenticated
+    if (!isAuthenticated) {
+      router.push("/login")
+    }
+  }, [isAuthenticated, router])
+
+  const handleLogout = () => {
+    logout()
+    router.push("/login")
+  }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated) {
+    return null
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -129,7 +157,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 />
               </svg>
             </Button>
-            <Button variant="ghost" size="sm" className="gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={handleLogout}
+            >
               <LogoutIcon />
               <span className="hidden sm:inline">Logout</span>
             </Button>

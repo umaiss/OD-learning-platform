@@ -1,15 +1,29 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 export default function Home() {
+  const router = useRouter()
+  const isAuthenticated = useAuthStore(useShallow((state) => state.isAuthenticated))
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    // Redirect authenticated users to dashboard
+    if (isAuthenticated) {
+      router.push("/dashboard")
+    }
+  }, [isAuthenticated, router])
+
+  // Don't render if authenticated (will redirect)
+  if (isAuthenticated) {
+    return null
+  }
 
   return (
     <div className="flex min-h-screen">

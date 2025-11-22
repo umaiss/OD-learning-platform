@@ -1,26 +1,52 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { EyeIcon } from "@/components/ui/eye-icon"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 export default function LoginPage() {
+  const router = useRouter()
+  const { login, isAuthenticated } = useAuthStore(
+    useShallow((state) => ({
+      login: state.login,
+      isAuthenticated: state.isAuthenticated,
+    }))
+  )
   const [mounted, setMounted] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    // Redirect if already authenticated
+    if (isAuthenticated) {
+      router.push("/dashboard")
+    }
+  }, [isAuthenticated, router])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle login logic here
-    console.log("Login:", { email, password })
+    setError("")
+    setLoading(true)
+
+    try {
+      await login(email, password)
+      // Navigate to dashboard after successful login
+      router.push("/dashboard")
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -65,6 +91,12 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email address
@@ -77,6 +109,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -101,6 +134,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-11 pr-10"
                     required
+                    disabled={loading}
                   />
                   <button
                     type="button"
@@ -112,8 +146,12 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white">
-                Log in
+              <Button
+                type="submit"
+                className="w-full h-11 bg-primary hover:bg-primary/90 text-white"
+                disabled={loading}
+              >
+                {loading ? "Logging in..." : "Log in"}
               </Button>
             </form>
 

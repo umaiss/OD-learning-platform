@@ -1,26 +1,53 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { EyeIcon } from "@/components/ui/eye-icon"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 export default function SignupPage() {
+  const router = useRouter()
+  const { signup, isAuthenticated } = useAuthStore(
+    useShallow((state) => ({
+      signup: state.signup,
+      isAuthenticated: state.isAuthenticated,
+    }))
+  )
   const [mounted, setMounted] = useState(false)
+  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    // Redirect if already authenticated
+    if (isAuthenticated) {
+      router.push("/dashboard")
+    }
+  }, [isAuthenticated, router])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle signup logic here
-    console.log("Signup:", { email, password })
+    setError("")
+    setLoading(true)
+
+    try {
+      await signup(name, email, password)
+      // Navigate to login page after successful signup
+      router.push("/login")
+    } catch (err: any) {
+      setError(err.message || "Failed to create account. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -65,6 +92,28 @@ export default function SignupPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-sm font-medium">
+                  Full Name
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-11"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email address
@@ -77,6 +126,7 @@ export default function SignupPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -93,6 +143,7 @@ export default function SignupPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-11 pr-10"
                     required
+                    disabled={loading}
                   />
                   <button
                     type="button"
@@ -104,8 +155,12 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white">
-                Create account
+              <Button
+                type="submit"
+                className="w-full h-11 bg-primary hover:bg-primary/90 text-white"
+                disabled={loading}
+              >
+                {loading ? "Creating account..." : "Create account"}
               </Button>
             </form>
 
