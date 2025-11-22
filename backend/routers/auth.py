@@ -47,8 +47,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: dict
-    learner_id: Optional[int] = None  # Include learner_id if user is a learner
+    user: dict  # user object includes learner_id if user is a learner
 
 
 class UserResponse(BaseModel):
@@ -135,15 +134,21 @@ async def login(
         if learner:
             learner_id = learner.id
     
+    # Build user object with learner_id included
+    user_data = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role
+    }
+    
+    # Add learner_id to user object if user is a learner
+    if learner_id is not None:
+        user_data["learner_id"] = learner_id
+    
     return TokenResponse(
         access_token=access_token,
-        user={
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role
-        },
-        learner_id=learner_id
+        user=user_data
     )
 
 
@@ -178,15 +183,21 @@ async def login_json(
         if learner:
             learner_id = learner.id
     
+    # Build user object with learner_id included
+    user_data = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role
+    }
+    
+    # Add learner_id to user object if user is a learner
+    if learner_id is not None:
+        user_data["learner_id"] = learner_id
+    
     return TokenResponse(
         access_token=access_token,
-        user={
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role
-        },
-        learner_id=learner_id
+        user=user_data
     )
 
 
