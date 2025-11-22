@@ -1,0 +1,84 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import List, Dict
+from db.database import get_db
+from db.models import Learner, GeneratedContent
+from agents.content_generator import ContentGenerator, LessonContentOutput, QuizQuestion
+import json
+
+router = APIRouter(prefix="/content", tags=["content"])
+content_generator = ContentGenerator()
+
+
+class GenerateContentRequest(BaseModel):
+    learner_id: int
+    module_name: str
+
+
+class GenerateContentResponse(BaseModel):
+    learner_id: int
+    content_id: int
+    module_name: str
+    lesson_text: str
+    quiz: List[Dict]
+    message: str = "Content generated successfully"
+
+
+@router.post("/generate", response_model=GenerateContentResponse, status_code=status.HTTP_201_CREATED)
+async def generate_content(
+    request: GenerateContentRequest,
+    db: Session = Depends(get_db)
+):
+    """Generate lesson content and quiz for a module"""
+    try:
+        # Verify learner exists
+        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
+        if not learner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Learner with id {request.learner_id} not found"
+            )
+        
+        # Call the agent
+        result: LessonContentOutput = await content_generator.generate_content(
+            module_name=request.module_name
+        )
+        
+        # Convert quiz to dict for JSON storage
+        quiz_dict = [
+            {
+                "question": q.question,
+                "options": q.options,
+                "answer": q.answer
+            }
+            for q in result.quiz
+        ]
+        
+        # Save to database
+        generated_content = GeneratedContent(
+            learner_id=request.learner_id,
+            module_name=request.module_name,
+            lesson_text=result.lesson_text,
+            quiz_json=quiz_dict
+        )
+        
+        db.add(generated_content)
+        db.commit()
+        db.refresh(generated_content)
+        
+        return GenerateContentResponse(
+            learner_id=request.learner_id,
+            content_id=generated_content.id,
+            module_name=request.module_name,
+            lesson_text=result.lesson_text,
+            quiz=quiz_dict
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating content: {str(e)}"
+        )
+
