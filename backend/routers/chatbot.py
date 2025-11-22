@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from db.database import get_db
-from db.models import Learner, LearningPlan, ChatMessage
+from db.models import Learner, LearningPlan, ChatMessage, User
 from agents.chatbot import ChatbotAgent
+from core.dependencies import get_current_user, verify_learner_access_helper
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 chatbot = ChatbotAgent()
@@ -27,17 +28,13 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def chat(
     request: ChatRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Chat with SkillPilot AI Coach"""
+    """Chat with SkillPilot AI Coach (requires authentication)"""
     try:
-        # Verify learner exists
-        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
-        if not learner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Learner with id {request.learner_id} not found"
-            )
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
         
         # Get learner's skill map and learning plan
         skill_map = learner.skill_map or {}
@@ -63,9 +60,9 @@ async def chat(
             db=db
         )
         
-        # Save user message (user_id is nullable, we use session_id for tracking)
+        # Save user message (link to authenticated user)
         user_message = ChatMessage(
-            user_id=None,  # ChatMessage uses user_id from users table, we track by session_id
+            user_id=learner.user_id,  # Link to the authenticated user
             session_id=session_id,
             role="user",
             content=request.message
@@ -75,7 +72,7 @@ async def chat(
         
         # Save assistant response
         assistant_message = ChatMessage(
-            user_id=None,  # ChatMessage uses user_id from users table, we track by session_id
+            user_id=learner.user_id,  # Link to the authenticated user
             session_id=session_id,
             role="assistant",
             content=response_text

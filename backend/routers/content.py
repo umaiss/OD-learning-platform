@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Dict
 from db.database import get_db
-from db.models import Learner, GeneratedContent
+from db.models import Learner, GeneratedContent, User
 from agents.content_generator import ContentGenerator, LessonContentOutput, QuizQuestion
+from core.dependencies import get_current_user, verify_learner_access_helper
 import json
 
 router = APIRouter(prefix="/content", tags=["content"])
@@ -28,17 +29,13 @@ class GenerateContentResponse(BaseModel):
 @router.post("/generate", response_model=GenerateContentResponse, status_code=status.HTTP_201_CREATED)
 async def generate_content(
     request: GenerateContentRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate lesson content and quiz for a module"""
+    """Generate lesson content and quiz for a module (requires authentication)"""
     try:
-        # Verify learner exists
-        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
-        if not learner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Learner with id {request.learner_id} not found"
-            )
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
         
         # Call the agent
         result: LessonContentOutput = await content_generator.generate_content(

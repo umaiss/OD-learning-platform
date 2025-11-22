@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Dict, List
 from db.database import get_db
-from db.models import Learner, LearningPlan
+from db.models import Learner, LearningPlan, User
 from agents.learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo
+from core.dependencies import get_current_user, verify_learner_access_helper
 import json
 
 router = APIRouter(prefix="/learning-path", tags=["learning-path"])
@@ -31,17 +32,13 @@ class GenerateLearningPathResponse(BaseModel):
 @router.post("/generate", response_model=GenerateLearningPathResponse, status_code=status.HTTP_201_CREATED)
 async def generate_learning_path(
     request: GenerateLearningPathRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate a personalized learning path for a learner"""
+    """Generate a personalized learning path for a learner (requires authentication)"""
     try:
-        # Verify learner exists
-        learner = db.query(Learner).filter(Learner.id == request.learner_id).first()
-        if not learner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Learner with id {request.learner_id} not found"
-            )
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
         
         # Call the agent
         result: LearningPathOutput = await path_generator.generate_learning_path_plan(
