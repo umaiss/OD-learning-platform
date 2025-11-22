@@ -6,16 +6,22 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-interface LearningPathData {
-    learner_id: number
-    learning_plan_id?: number
-    duration_weeks: number
-    weekly_goals: string[]
-    milestones: string[]
+interface WeekData {
+    week: number
+    goals: string[]
     modules: Array<{
         name: string
         description: string
     }>
+    xp: number
+    milestones: string[]
+}
+
+interface LearningPathData {
+    learner_id: number
+    learning_plan_id: number
+    duration_weeks: number
+    weekly_goals: WeekData[]
     message: string
 }
 
@@ -98,19 +104,8 @@ export default function LearningPathPage() {
         )
     }
 
-    // Group modules by week (assuming equal distribution)
-    const modulesPerWeek = Math.ceil(learningPath.modules.length / learningPath.duration_weeks)
-    const weeklyModules: Array<Array<{ name: string; description: string }>> = []
-
-    for (let i = 0; i < learningPath.duration_weeks; i++) {
-        const start = i * modulesPerWeek
-        const end = Math.min(start + modulesPerWeek, learningPath.modules.length)
-        weeklyModules.push(learningPath.modules.slice(start, end))
-    }
-
-    // Calculate hours and XP per week (example calculation)
-    const hoursPerWeek = Math.ceil(8 / learningPath.duration_weeks) * 2 // Approximate 2 hours per module
-    const xpPerWeek = 200 // Base XP per week
+    // Calculate hours per week (approximate 2 hours per module)
+    const getHoursForWeek = (modulesCount: number) => modulesCount * 2
 
     return (
         <DashboardLayout>
@@ -154,17 +149,14 @@ export default function LearningPathPage() {
                     <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-border" />
 
                     <div className="space-y-8">
-                        {weeklyModules.map((weekModules, weekIndex) => {
-                            const weekNumber = weekIndex + 1
-                            const weekGoal = learningPath.weekly_goals[weekIndex] || `Week ${weekNumber} Goals`
-                            const totalModules = weekModules.length
-                            const totalHours = totalModules * 2 // Approximate 2 hours per module
-                            const totalXP = totalModules * 50 // Approximate 50 XP per module
+                        {learningPath.weekly_goals.map((weekData, weekIndex) => {
+                            const totalModules = weekData.modules.length
+                            const totalHours = getHoursForWeek(totalModules)
 
                             return (
                                 <div
                                     key={weekIndex}
-                                    className={`relative flex gap-6 animate-fade-in-up`}
+                                    className={`relative flex gap-6 animate-fade-in-up ${!mounted ? "opacity-0" : ""}`}
                                     style={{ animationDelay: `${(weekIndex + 1) * 0.1}s` }}
                                 >
                                     {/* Timeline Dot */}
@@ -176,22 +168,53 @@ export default function LearningPathPage() {
                                     <Card className="flex-1 border-0 shadow-sm hover-lift">
                                         <CardHeader className="pb-4">
                                             <CardTitle className="text-lg font-semibold text-primary">
-                                                Week {weekNumber}: {weekGoal.split(":")[0] || weekGoal}
+                                                Week {weekData.week}
                                             </CardTitle>
                                             <CardDescription className="text-xs">
-                                                {weekGoal}
+                                                {weekData.goals.join(" • ")}
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
+                                            {/* Goals List */}
+                                            {weekData.goals.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <h4 className="text-sm font-semibold text-foreground">Goals</h4>
+                                                    <ul className="space-y-1">
+                                                        {weekData.goals.map((goal, goalIndex) => (
+                                                            <li key={goalIndex} className="text-xs text-muted-foreground flex items-start gap-2">
+                                                                <span className="text-primary mt-1">•</span>
+                                                                <span>{goal}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
                                             {/* Modules List */}
                                             <div className="space-y-2">
-                                                {weekModules.map((module, moduleIndex) => (
+                                                <h4 className="text-sm font-semibold text-foreground">Modules</h4>
+                                                {weekData.modules.map((module, moduleIndex) => (
                                                     <div key={moduleIndex} className="p-3 rounded-lg bg-muted/50">
-                                                        <h4 className="font-semibold text-sm mb-1">{module.name}</h4>
+                                                        <h5 className="font-semibold text-sm mb-1">{module.name}</h5>
                                                         <p className="text-xs text-muted-foreground">{module.description}</p>
                                                     </div>
                                                 ))}
                                             </div>
+
+                                            {/* Milestones */}
+                                            {weekData.milestones && weekData.milestones.length > 0 && (
+                                                <div className="space-y-2 pt-2 border-t">
+                                                    <h4 className="text-sm font-semibold text-foreground">Milestones</h4>
+                                                    <ul className="space-y-1">
+                                                        {weekData.milestones.map((milestone, milestoneIndex) => (
+                                                            <li key={milestoneIndex} className="text-xs text-muted-foreground flex items-start gap-2">
+                                                                <span className="text-primary mt-1">✓</span>
+                                                                <span>{milestone}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
 
                                             {/* Week Stats */}
                                             <div className="flex gap-2 pt-2 border-t">
@@ -202,7 +225,7 @@ export default function LearningPathPage() {
                                                     {totalHours} hours
                                                 </div>
                                                 <div className="px-3 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium">
-                                                    {totalXP} XP
+                                                    {weekData.xp} XP
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -213,32 +236,6 @@ export default function LearningPathPage() {
                     </div>
                 </div>
 
-                {/* Milestones Section */}
-                {learningPath.milestones && learningPath.milestones.length > 0 && (
-                    <Card className={`border-0 shadow-sm hover-lift animate-fade-in-up animate-delay-300 ${!mounted ? "opacity-0" : ""}`}>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-base font-semibold">Key Milestones</CardTitle>
-                            <CardDescription className="text-xs">
-                                Important achievements throughout your learning journey
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
-                                {learningPath.milestones.map((milestone, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex items-start gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5"
-                                    >
-                                        <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-xs font-semibold">
-                                            {index + 1}
-                                        </div>
-                                        <p className="text-sm text-foreground">{milestone}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-4">
