@@ -1,7 +1,7 @@
 """
 Authentication routes for signup and login
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -48,6 +48,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict
+    learner_id: Optional[int] = None  # Include learner_id if user is a learner
 
 
 class UserResponse(BaseModel):
@@ -107,7 +108,7 @@ async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    """Login and get access token"""
+    """Login and get access token (OAuth2 form data)"""
     # OAuth2PasswordRequestForm uses 'username' field for email
     user = db.query(User).filter(User.email == form_data.username).first()
     
@@ -127,6 +128,13 @@ async def login(
     # Create access token
     access_token = create_access_token(data={"sub": user.id, "role": user.role})
     
+    # Get learner_id if user is a learner
+    learner_id = None
+    if user.role == "learner":
+        learner = db.query(Learner).filter(Learner.user_id == user.id).first()
+        if learner:
+            learner_id = learner.id
+    
     return TokenResponse(
         access_token=access_token,
         user={
@@ -134,7 +142,8 @@ async def login(
             "email": user.email,
             "name": user.name,
             "role": user.role
-        }
+        },
+        learner_id=learner_id
     )
 
 
@@ -162,6 +171,13 @@ async def login_json(
     # Create access token
     access_token = create_access_token(data={"sub": user.id, "role": user.role})
     
+    # Get learner_id if user is a learner
+    learner_id = None
+    if user.role == "learner":
+        learner = db.query(Learner).filter(Learner.user_id == user.id).first()
+        if learner:
+            learner_id = learner.id
+    
     return TokenResponse(
         access_token=access_token,
         user={
@@ -169,7 +185,8 @@ async def login_json(
             "email": user.email,
             "name": user.name,
             "role": user.role
-        }
+        },
+        learner_id=learner_id
     )
 
 
@@ -331,4 +348,79 @@ async def get_current_user_info(
         role=current_user.role,
         is_active=current_user.is_active
     )
+
+
+@router.post("/verify-token")
+async def verify_token(
+    authorization: str = Header(None, alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to verify a token from Authorization header (for testing purposes)"""
+    from core.auth import decode_access_token
+    from jose import jwt
+    from core.config import settings
+    from datetime import datetime
+    
+    # Extract token from Authorization header
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header missing"
+        )
+    
+    # Handle both "Bearer <token>" and just "<token>" formats
+    if authorization.startswith("Bearer "):
+        token = authorization[7:]
+    else:
+        token = authorization
+    
+    try:
+        # Try to decode without verification first (need to provide key even when not verifying)
+        unverified = jwt.decode(
+            token, 
+            settings.jwt_secret_key, 
+            options={"verify_signature": False},
+            algorithms=[settings.jwt_algorithm]
+        )
+        exp_timestamp = unverified.get("exp")
+        exp_time = datetime.fromtimestamp(exp_timestamp) if exp_timestamp else None
+        now = datetime.utcnow()
+        
+        # Try to decode with verification
+        payload = decode_access_token(token)
+        
+        if payload:
+            # JWT 'sub' is a string, convert to int
+            user_id_str = payload.get("sub")
+            user_id = int(user_id_str) if user_id_str else None
+            user = db.query(User).filter(User.id == user_id).first() if user_id else None
+            
+            return {
+                "valid": True,
+                "payload": payload,
+                "expires_at": exp_time.isoformat() if exp_time else None,
+                "is_expired": exp_time < now if exp_time else None,
+                "user": {
+                    "id": user.id if user else None,
+                    "email": user.email if user else None,
+                    "role": user.role if user else None,
+                    "is_active": user.is_active if user else None
+                } if user else None
+            }
+        else:
+            return {
+                "valid": False,
+                "error": "Token validation failed",
+                "unverified_payload": unverified,
+                "expires_at": exp_time.isoformat() if exp_time else None,
+                "is_expired": exp_time < now if exp_time else None,
+                "secret_key_configured": bool(settings.jwt_secret_key),
+                "algorithm": settings.jwt_algorithm
+            }
+    except Exception as e:
+        return {
+            "valid": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
 
