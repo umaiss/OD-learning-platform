@@ -1,6 +1,19 @@
 # Learning Platform Backend API
 
-FastAPI backend for the Learning Platform application.
+FastAPI backend for the Learning Platform application with LangChain integration, Supabase database, and PGVector support.
+
+## Features
+
+- **AI Agents**: Skill profiling, learning path generation, content generation, missions, and chatbot
+- **Database**: Supabase (PostgreSQL) with SQLAlchemy ORM and PGVector for embeddings
+- **LLM Integration**: Support for OpenAI and Anthropic models via LangChain
+- **RESTful API**: Complete CRUD operations for all entities
+
+## Requirements
+
+- Python 3.10+
+- Supabase account (free tier available)
+- API keys for OpenAI and/or Anthropic
 
 ## Setup
 
@@ -15,10 +28,41 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-3. **Set up environment variables**:
+3. **Set up Supabase**:
+   - Create a free account at [supabase.com](https://supabase.com)
+   - Create a new project
+   - Go to **Settings > Database**
+   - Enable the `pgvector` extension:
+     - Go to **Database > Extensions** in Supabase dashboard
+     - Search for "vector" and enable it
+     - Or run in SQL Editor: `CREATE EXTENSION IF NOT EXISTS vector;`
+   - Get your connection string:
+     - Go to **Settings > Database > Connection string**
+     - **Choose the right connection method:**
+       - **Transaction Pooler** (Recommended for FastAPI) - Port 6543
+         - Best for: Production applications, high concurrency, serverless
+         - Handles many short-lived connections efficiently
+         - Use this for your FastAPI backend
+       - **Session Pooler** - Port 6543
+         - Best for: Applications needing session-level features (prepared statements, temp tables)
+         - Use if you need session-specific functionality
+       - **Direct Connection** - Port 5432
+         - Best for: One-time operations, migrations, admin tasks
+         - Use only for `db/init_db.py` or database migrations
+         - NOT recommended for application connections (can exhaust connection limits)
+     - Copy the connection string from your chosen method
+
+4. **Set up environment variables**:
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your configuration:
+# - DATABASE_URL: Your Supabase connection pooler URL
+# - OpenAI and/or Anthropic API keys
+```
+
+5. **Initialize the database**:
+```bash
+python db/init_db.py
 ```
 
 ## Running the Server
@@ -39,23 +83,149 @@ Once the server is running, you can access:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-## Endpoints
+## API Endpoints
 
-- `GET /` - Root endpoint
-- `GET /health` - Health check
-- `GET /api/test` - Test endpoint
+All endpoints are prefixed with `/api/v1`:
+
+### Skill Profile
+- `POST /api/v1/skill-profile/assess` - Assess user skills
+- `POST /api/v1/skill-profile/` - Create skill profile
+- `GET /api/v1/skill-profile/user/{user_id}` - Get user skill profiles
+- `GET /api/v1/skill-profile/{profile_id}` - Get skill profile
+- `PUT /api/v1/skill-profile/{profile_id}` - Update skill profile
+- `DELETE /api/v1/skill-profile/{profile_id}` - Delete skill profile
+
+### Learning Path
+- `POST /api/v1/learning-path/generate` - Generate learning path
+- `POST /api/v1/learning-path/` - Create learning path
+- `GET /api/v1/learning-path/user/{user_id}` - Get user learning paths
+- `GET /api/v1/learning-path/{path_id}` - Get learning path
+- `PUT /api/v1/learning-path/{path_id}` - Update learning path
+- `DELETE /api/v1/learning-path/{path_id}` - Delete learning path
+
+### Content
+- `POST /api/v1/content/generate` - Generate learning content
+- `POST /api/v1/content/generate-exercise` - Generate exercise
+- `POST /api/v1/content/generate-quiz` - Generate quiz
+- `POST /api/v1/content/` - Create content
+- `GET /api/v1/content/` - List all content
+- `GET /api/v1/content/{content_id}` - Get content
+- `PUT /api/v1/content/{content_id}` - Update content
+- `DELETE /api/v1/content/{content_id}` - Delete content
+
+### Missions
+- `POST /api/v1/missions/generate` - Generate mission
+- `POST /api/v1/missions/evaluate` - Evaluate mission completion
+- `POST /api/v1/missions/` - Create mission
+- `GET /api/v1/missions/user/{user_id}` - Get user missions
+- `GET /api/v1/missions/{mission_id}` - Get mission
+- `PUT /api/v1/missions/{mission_id}` - Update mission
+- `PATCH /api/v1/missions/{mission_id}/complete` - Complete mission
+- `DELETE /api/v1/missions/{mission_id}` - Delete mission
+
+### Chatbot
+- `POST /api/v1/chatbot/chat` - Chat with assistant
+- `POST /api/v1/chatbot/answer` - Get detailed answer
+- `POST /api/v1/chatbot/hint` - Get hint for problem
+
+### Progress
+- `POST /api/v1/progress/` - Create progress record
+- `GET /api/v1/progress/user/{user_id}` - Get user progress
+- `GET /api/v1/progress/user/{user_id}/entity/{entity_type}/{entity_id}` - Get entity progress
+- `PUT /api/v1/progress/{progress_id}` - Update progress
+- `PATCH /api/v1/progress/user/{user_id}/entity/{entity_type}/{entity_id}` - Upsert progress
+- `GET /api/v1/progress/user/{user_id}/stats` - Get user statistics
+- `DELETE /api/v1/progress/{progress_id}` - Delete progress
 
 ## Project Structure
 
 ```
 backend/
-├── main.py              # Main FastAPI application
-├── requirements.txt     # Python dependencies
-├── .env.example        # Example environment variables
-└── README.md           # This file
+├── main.py                 # Main FastAPI application
+├── requirements.txt        # Python dependencies
+├── .env.example           # Example environment variables
+├── db/
+│   ├── __init__.py
+│   ├── database.py        # Database connection and session
+│   ├── models.py          # SQLAlchemy models
+│   ├── vector.py          # Vector embedding models
+│   └── init_db.py         # Database initialization script
+├── core/
+│   ├── __init__.py
+│   ├── config.py          # Configuration and settings
+│   └── llm.py             # LLM provider factory
+├── agents/
+│   ├── __init__.py
+│   ├── skill_profiler.py  # Skill assessment agent
+│   ├── learning_path.py   # Learning path generator
+│   ├── content_generator.py # Content generation agent
+│   ├── missions.py        # Mission generator
+│   └── chatbot.py         # Chatbot agent
+└── routes/
+    ├── __init__.py
+    ├── skill_profile.py   # Skill profile endpoints
+    ├── learning_path.py   # Learning path endpoints
+    ├── content.py         # Content endpoints
+    ├── missions.py        # Mission endpoints
+    ├── chatbot.py         # Chatbot endpoints
+    └── progress.py        # Progress tracking endpoints
 ```
 
 ## CORS Configuration
 
 The API is configured to accept requests from `http://localhost:3000` (Next.js default port). Update the `allow_origins` in `main.py` if your frontend runs on a different port.
+
+## Database Models
+
+- **User**: User accounts
+- **SkillProfile**: User skill assessments
+- **LearningPath**: Personalized learning paths
+- **Module**: Learning path modules
+- **Content**: Generated learning content
+- **Mission**: Gamified learning missions
+- **Progress**: Progress tracking records
+- **ChatMessage**: Chatbot conversation history
+- **VectorEmbedding**: Vector embeddings for semantic search
+
+## Development Notes
+
+- All agents use LangChain for LLM interactions
+- The LLM provider automatically selects OpenAI or Anthropic based on available API keys
+- Database models use SQLAlchemy with async support ready
+- **Supabase**: Uses connection pooler for better performance (port 6543)
+- **PGVector**: Supabase has pgvector extension pre-installed, just enable it in the dashboard
+- All endpoints include proper error handling and validation
+
+## Supabase Connection Methods Explained
+
+### For FastAPI Application (Production):
+**Use: Transaction Pooler** ✅
+- **Port**: 6543
+- **Best for**: FastAPI, high concurrency, production workloads
+- **Why**: Efficiently handles many short-lived connections, perfect for REST APIs
+- **Connection string format**: `postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres`
+
+### Alternative (if needed):
+**Session Pooler**
+- **Port**: 6543
+- **Use when**: You need session-level features (prepared statements, temporary tables)
+- **Connection string format**: Same as Transaction Pooler (Supabase handles routing)
+
+### For Database Initialization/Migrations:
+**Use: Direct Connection**
+- **Port**: 5432
+- **Best for**: One-time operations like `db/init_db.py`, migrations, admin tasks
+- **Why**: Full database access, no pooling overhead
+- **Connection string format**: `postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres`
+- **Note**: You can temporarily switch to this for migrations, then switch back to Transaction Pooler
+
+### Quick Setup:
+1. **Enable pgvector extension**:
+   - Go to Supabase Dashboard > Database > Extensions
+   - Search for "vector" and click "Enable"
+   - Or run in SQL Editor: `CREATE EXTENSION IF NOT EXISTS vector;`
+
+2. **For your `.env` file**:
+   - Use **Transaction Pooler** connection string for `DATABASE_URL`
+   - This is what your FastAPI app will use for all operations
 
