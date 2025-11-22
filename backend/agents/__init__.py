@@ -1,5 +1,5 @@
 from .skill_profiler import SkillProfiler, SkillProfileOutput, LinkedInProfile, EndorsedSkill
-from .learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo
+from .learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo, WeeklyGoal
 from .content_generator import ContentGenerator, LessonContentOutput, QuizQuestion
 from .missions import MissionGenerator, DailyMissionsOutput
 from .chatbot import ChatbotAgent
@@ -12,6 +12,7 @@ __all__ = [
     "LearningPathGenerator",
     "LearningPathOutput",
     "ModuleInfo",
+    "WeeklyGoal",
     "ContentGenerator",
     "LessonContentOutput",
     "QuizQuestion",

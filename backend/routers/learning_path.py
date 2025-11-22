@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 from db.database import get_db
 from db.models import Learner, LearningPlan, User
-from agents.learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo
+from agents.learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo, WeeklyGoal
 from core.dependencies import get_current_user, verify_learner_access_helper
 import json
 
@@ -19,13 +19,20 @@ class GenerateLearningPathRequest(BaseModel):
     role: Optional[str] = None  # Optional: will use saved profile if not provided
 
 
+class WeeklyGoalResponse(BaseModel):
+    """Weekly goal response structure"""
+    week: int
+    goals: List[str]
+    modules: List[Dict[str, str]]  # List of {name, description}
+    xp: int
+    milestones: List[str]
+
+
 class GenerateLearningPathResponse(BaseModel):
     learner_id: int
     learning_plan_id: int
     duration_weeks: int
-    weekly_goals: List[str]
-    milestones: List[str]
-    modules: List[Dict]
+    weekly_goals: List[WeeklyGoalResponse]  # Structured weekly goals with modules, XP, and milestones
     message: str = "Learning path generated successfully"
 
 
@@ -71,15 +78,22 @@ async def generate_learning_path(
             role=role
         )
         
-        # Convert modules to dict for JSON storage
-        modules_dict = [{"name": m.name, "description": m.description} for m in result.modules]
+        # Convert weekly goals to dict format for JSON storage and response
+        weekly_goals_dict = []
+        for weekly_goal in result.weekly_goals:
+            modules_dict = [{"name": m.name, "description": m.description} for m in weekly_goal.modules]
+            weekly_goals_dict.append({
+                "week": weekly_goal.week,
+                "goals": weekly_goal.goals,
+                "modules": modules_dict,
+                "xp": weekly_goal.xp,
+                "milestones": weekly_goal.milestones
+            })
         
         # Create learning plan in database
         plan_json = {
             "duration_weeks": result.duration_weeks,
-            "weekly_goals": result.weekly_goals,
-            "milestones": result.milestones,
-            "modules": modules_dict
+            "weekly_goals": weekly_goals_dict
         }
         
         learning_plan = LearningPlan(
@@ -91,13 +105,23 @@ async def generate_learning_path(
         db.commit()
         db.refresh(learning_plan)
         
+        # Convert to response format
+        weekly_goals_response = [
+            WeeklyGoalResponse(
+                week=wg["week"],
+                goals=wg["goals"],
+                modules=wg["modules"],
+                xp=wg["xp"],
+                milestones=wg["milestones"]
+            )
+            for wg in weekly_goals_dict
+        ]
+        
         return GenerateLearningPathResponse(
             learner_id=request.learner_id,
             learning_plan_id=learning_plan.id,
             duration_weeks=result.duration_weeks,
-            weekly_goals=result.weekly_goals,
-            milestones=result.milestones,
-            modules=modules_dict
+            weekly_goals=weekly_goals_response
         )
     except HTTPException:
         raise
