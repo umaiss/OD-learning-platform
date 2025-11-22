@@ -12,12 +12,19 @@ class ModuleInfo(BaseModel):
     description: str
 
 
+class WeeklyGoal(BaseModel):
+    """Weekly goal with modules, XP, and milestones"""
+    week: int
+    goals: List[str]  # List of goals for this week
+    modules: List[ModuleInfo]  # Modules for this week
+    xp: int  # XP points for completing this week
+    milestones: List[str]  # Milestones for this week
+
+
 class LearningPathOutput(BaseModel):
     """Pydantic schema for learning path output"""
     duration_weeks: int
-    weekly_goals: List[str]
-    milestones: List[str]
-    modules: List[ModuleInfo]
+    weekly_goals: List[WeeklyGoal]  # Structured weekly goals with modules, XP, and milestones
 
 
 class LearningPathGenerator:
@@ -46,7 +53,7 @@ class LearningPathGenerator:
         """
         system_prompt = (
             "You are an expert tech mentor. Create a personalized 4–6 week learning plan "
-            "based on the skill map."
+            "based on the skill map with gamification elements."
         )
         
         user_prompt = f"""Role: {role}
@@ -55,17 +62,51 @@ Skill Map: {skill_map}
 
 Create a comprehensive learning plan that:
 1. Has a duration of 4-6 weeks
-2. Includes weekly goals as a simple array of strings (one goal per week, e.g., ["Week 1: Learn basics", "Week 2: Practice"])
-3. Defines clear milestones as a simple array of strings (key achievements, e.g., ["Complete first project", "Deploy to production"])
-4. Lists modules with names and descriptions
+2. For EACH week, provide:
+   - week: Week number (1, 2, 3, etc.)
+   - goals: Array of 2-4 specific learning goals for that week (e.g., ["Learn React hooks", "Build a todo app"])
+   - modules: Array of 2-4 modules for that week, each with "name" and "description"
+   - xp: XP points for completing that week (100-500 points, increasing with difficulty)
+   - milestones: Array of 1-3 key milestones/achievements for that week (e.g., ["Complete first React component", "Deploy app to Vercel"])
 
-IMPORTANT: 
-- weekly_goals must be an array of strings, NOT objects. Example: ["Goal 1", "Goal 2"]
-- milestones must be an array of strings, NOT objects. Example: ["Milestone 1", "Milestone 2"]
-- Each module must have "name" (string) and "description" (string) fields
+IMPORTANT STRUCTURE:
+- weekly_goals must be an array of objects, where each object has:
+  - week: integer (1, 2, 3, etc.)
+  - goals: array of strings (e.g., ["Goal 1", "Goal 2"])
+  - modules: array of objects with "name" (string) and "description" (string)
+  - xp: integer (gamification points, 100-500)
+  - milestones: array of strings (e.g., ["Milestone 1", "Milestone 2"])
+
+Example structure:
+{{
+  "duration_weeks": 4,
+  "weekly_goals": [
+    {{
+      "week": 1,
+      "goals": ["Learn React basics", "Set up development environment"],
+      "modules": [
+        {{"name": "React Fundamentals", "description": "Introduction to React components and JSX"}},
+        {{"name": "Development Setup", "description": "Setting up React development environment"}}
+      ],
+      "xp": 100,
+      "milestones": ["Complete first React component", "Set up project"]
+    }},
+    {{
+      "week": 2,
+      "goals": ["Build interactive components", "Learn state management"],
+      "modules": [
+        {{"name": "State Management", "description": "Understanding React state and props"}},
+        {{"name": "Event Handling", "description": "Handling user interactions"}}
+      ],
+      "xp": 150,
+      "milestones": ["Build a todo app", "Implement state management"]
+    }}
+  ]
+}}
 
 Focus on addressing skill gaps and building on existing strengths from the skill map.
-Make the plan practical and achievable for someone with {experience} years of experience."""
+Make the plan practical and achievable for someone with {experience} years of experience.
+Distribute XP points based on difficulty - easier weeks get less XP, harder weeks get more."""
         
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         
