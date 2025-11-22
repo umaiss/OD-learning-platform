@@ -173,6 +173,7 @@ class Learner(Base):
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
     professional_role = Column(String, nullable=False)  # e.g., "developer", "designer", "manager"
     experience_years = Column(Integer, default=0)
+    learning_goals = Column(Text)  # User's learning goals and career objectives
     skill_map = Column(JSON)  # JSON object mapping skills to levels
     strengths = Column(Text)  # Text description of strengths
     gaps = Column(Text)  # Text description of skill gaps

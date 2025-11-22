@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     supabase_region: Optional[str] = None
     
     # Vector Database
-    vector_dimension: int = 1536
+    # Default: 768 for nomic-embed-text, 1536 for OpenAI embeddings
+    # nomic-embed-text produces 768-dimensional embeddings
+    vector_dimension: int = 768
     
     # Application Settings
     environment: str = "development"

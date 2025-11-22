@@ -6,6 +6,7 @@ from db.database import get_db
 from db.models import Learner, LearningPlan, User
 from agents.learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo, WeeklyGoal
 from core.dependencies import get_current_user, verify_learner_access_helper
+from core.vector_utils import create_embeddings_for_content
 import json
 
 router = APIRouter(prefix="/learning-path", tags=["learning-path"])
@@ -17,6 +18,7 @@ class GenerateLearningPathRequest(BaseModel):
     skill_map: Optional[Dict[str, str]] = None  # Optional: will use saved profile if not provided
     experience: Optional[int] = None  # Optional: will use saved profile if not provided
     role: Optional[str] = None  # Optional: will use saved profile if not provided
+    learning_goals: Optional[str] = None  # Optional: will use saved profile if not provided
 
 
 class WeeklyGoalResponse(BaseModel):
@@ -33,6 +35,7 @@ class GenerateLearningPathResponse(BaseModel):
     learning_plan_id: int
     duration_weeks: int
     weekly_goals: List[WeeklyGoalResponse]  # Structured weekly goals with modules, XP, and milestones
+    total_xp: int  # Total XP for the entire learning path
     message: str = "Learning path generated successfully"
 
 
@@ -54,6 +57,7 @@ async def generate_learning_path(
         skill_map = request.skill_map
         experience = request.experience
         role = request.role
+        learning_goals = request.learning_goals
         
         # If not provided, try to get from saved profile
         if skill_map is None:
@@ -71,29 +75,44 @@ async def generate_learning_path(
         if role is None:
             role = learner.professional_role or "developer"
         
+        if learning_goals is None:
+            learning_goals = learner.learning_goals or ""
+        
         # Call the agent
         result: LearningPathOutput = await path_generator.generate_learning_path_plan(
             skill_map=skill_map,
             experience=experience,
-            role=role
+            role=role,
+            learning_goals=learning_goals
         )
         
         # Convert weekly goals to dict format for JSON storage and response
         weekly_goals_dict = []
+        total_xp = 0
+        
         for weekly_goal in result.weekly_goals:
+            # Convert modules to dict format
             modules_dict = [{"name": m.name, "description": m.description} for m in weekly_goal.modules]
-            weekly_goals_dict.append({
+            
+            # Create weekly goal dict with all required fields
+            weekly_goal_dict = {
                 "week": weekly_goal.week,
                 "goals": weekly_goal.goals,
                 "modules": modules_dict,
                 "xp": weekly_goal.xp,
                 "milestones": weekly_goal.milestones
-            })
+            }
+            weekly_goals_dict.append(weekly_goal_dict)
+            
+            # Calculate total XP for gamification
+            total_xp += weekly_goal.xp
         
-        # Create learning plan in database
+        # Create learning plan in database with complete structure
         plan_json = {
             "duration_weeks": result.duration_weeks,
-            "weekly_goals": weekly_goals_dict
+            "weekly_goals": weekly_goals_dict,
+            "total_xp": total_xp,  # Total XP for the entire learning path
+            "created_at": None  # Will be set by database
         }
         
         learning_plan = LearningPlan(
@@ -104,6 +123,39 @@ async def generate_learning_path(
         db.add(learning_plan)
         db.commit()
         db.refresh(learning_plan)
+        
+        # Create vector embeddings for the learning plan
+        # This enables semantic search in the chatbot
+        try:
+            # Create a text representation of the learning plan for embedding
+            plan_text_parts = [
+                f"Learning Path: {role} with {experience} years experience",
+                f"Duration: {result.duration_weeks} weeks",
+                f"Total XP: {total_xp}"
+            ]
+            
+            if learning_goals:
+                plan_text_parts.append(f"Learning Goals: {learning_goals}")
+            
+            for weekly_goal in result.weekly_goals:
+                plan_text_parts.append(f"Week {weekly_goal.week}: {', '.join(weekly_goal.goals)}")
+                for module in weekly_goal.modules:
+                    plan_text_parts.append(f"  Module: {module.name} - {module.description}")
+                if weekly_goal.milestones:
+                    plan_text_parts.append(f"  Milestones: {', '.join(weekly_goal.milestones)}")
+            
+            plan_text = "\n".join(plan_text_parts)
+            
+            await create_embeddings_for_content(
+                db=db,
+                text=plan_text,
+                content_type="learning_plan",
+                learner_id=request.learner_id,
+                learning_plan_id=learning_plan.id
+            )
+        except Exception as e:
+            # Don't fail the request if embedding creation fails
+            print(f"Warning: Failed to create embeddings for learning plan: {str(e)}")
         
         # Convert to response format
         weekly_goals_response = [
@@ -121,7 +173,8 @@ async def generate_learning_path(
             learner_id=request.learner_id,
             learning_plan_id=learning_plan.id,
             duration_weeks=result.duration_weeks,
-            weekly_goals=weekly_goals_response
+            weekly_goals=weekly_goals_response,
+            total_xp=total_xp
         )
     except HTTPException:
         raise

@@ -6,7 +6,8 @@ FastAPI backend for the Learning Platform application with LangChain integration
 
 - **AI Agents**: Skill profiling, learning path generation, content generation, missions, and chatbot
 - **Database**: Supabase (PostgreSQL) with SQLAlchemy ORM and PGVector for embeddings
-- **LLM Integration**: Support for OpenAI and Anthropic models via LangChain
+- **Vector Search**: Semantic search using Ollama embeddings for context-aware chatbot responses
+- **LLM Integration**: Support for Ollama (local) and OpenAI/Anthropic models via LangChain
 - **RESTful API**: Complete CRUD operations for all entities
 
 ## Requirements
@@ -60,7 +61,7 @@ cp .env.example .env
 # - OpenAI and/or Anthropic API keys
 ```
 
-5. **Initialize the database**:
+6. **Initialize the database**:
 ```bash
 python db/init_db.py
 ```
@@ -187,13 +188,44 @@ The API is configured to accept requests from `http://localhost:3000` (Next.js d
 - **ChatMessage**: Chatbot conversation history
 - **VectorEmbedding**: Vector embeddings for semantic search
 
+## Vector Search & Semantic Search
+
+The platform uses **PGVector** for semantic search, enabling the chatbot to provide contextually relevant responses based on stored content.
+
+### How It Works
+
+1. **Embedding Generation**: When content is created (lessons, learning plans, profiles), embeddings are automatically generated using Ollama's `nomic-embed-text` model
+2. **Storage**: Embeddings are stored in the `vector_embeddings` table with the original text
+3. **Semantic Search**: When users chat with the AI coach, their queries are embedded and matched against stored content using cosine similarity
+4. **Context-Aware Responses**: The chatbot uses retrieved content to provide more relevant and accurate answers
+
+### Configuration
+
+- **Embedding Model**: Set `OLLAMA_EMBEDDING_MODEL` in `.env` (default: `nomic-embed-text`)
+- **Ollama URL**: Set `OLLAMA_BASE_URL` in `.env` (default: `http://localhost:11434`)
+- **Vector Dimension**: Set `VECTOR_DIMENSION` in `.env` (default: `768` for nomic-embed-text)
+
+### Requirements
+
+- Ollama must be running locally or accessible at the configured URL
+- Install the embedding model: `ollama pull nomic-embed-text`
+- pgvector extension must be enabled in Supabase
+
+### Automatic Embedding Creation
+
+Embeddings are automatically created when:
+- ✅ Learning content is generated (`/api/v1/content/generate`)
+- ✅ Learning paths are generated (`/api/v1/learning-path/generate`)
+- ✅ Skill profiles are saved (`/api/v1/profile/save`)
+
 ## Development Notes
 
 - All agents use LangChain for LLM interactions
-- The LLM provider automatically selects OpenAI or Anthropic based on available API keys
+- The LLM provider uses Ollama for local inference (default: `llama3.1`)
 - Database models use SQLAlchemy with async support ready
 - **Supabase**: Uses connection pooler for better performance (port 6543)
 - **PGVector**: Supabase has pgvector extension pre-installed, just enable it in the dashboard
+- **Vector Search**: Semantic search is fully integrated and automatically creates embeddings for all generated content
 - All endpoints include proper error handling and validation
 
 ## Supabase Connection Methods Explained
