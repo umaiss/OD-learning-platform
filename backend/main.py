@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from core.config import settings
 
-# Import existing routers
-from routes import skill_profile, learning_path, content, missions, chatbot, progress
+# Import existing routers (legacy - keeping for backward compatibility if needed)
+from routes import skill_profile, content, missions, chatbot, progress
 
 # Import new routers
 from routers import (
@@ -34,9 +34,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include existing routers
+# Include existing routers (legacy - keeping for backward compatibility if needed)
 app.include_router(skill_profile.router, prefix=settings.api_v1_prefix)
-app.include_router(learning_path.router, prefix=settings.api_v1_prefix)
+# Note: learning_path.router removed - using learning_path_router instead
 app.include_router(content.router, prefix=settings.api_v1_prefix)
 app.include_router(missions.router, prefix=settings.api_v1_prefix)
 app.include_router(chatbot.router, prefix=settings.api_v1_prefix)
