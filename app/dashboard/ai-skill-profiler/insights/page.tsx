@@ -384,7 +384,7 @@ export default function AISkillInsightsPage() {
             Update Profile
           </Button>
           <Button className="bg-primary hover:bg-primary/90 text-white">
-            Download Report
+            Generate Learing Path
           </Button>
         </div>
       </div>
