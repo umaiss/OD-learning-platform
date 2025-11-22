@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { signupAPI, loginAPI } from "@/lib/api/auth"
 
 interface User {
     id: string
@@ -17,47 +18,6 @@ interface AuthState {
     checkAuth: () => void
 }
 
-// Mock API functions - replace with actual API calls
-const mockSignup = async (name: string, email: string, password: string) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // In real app, this would be an API call to your backend
-    // For now, we'll just create a mock token
-    const token = `mock_token_${Date.now()}`
-    const user = {
-        id: `user_${Date.now()}`,
-        name,
-        email,
-    }
-
-    return { token, user }
-}
-
-const mockLogin = async (email: string, password: string) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // In real app, this would be an API call to your backend
-    // For now, we'll check localStorage for registered users
-    if (typeof window === "undefined") {
-        throw new Error("Invalid email or password")
-    }
-
-    const storedUsers = localStorage.getItem("registered_users")
-    const users = storedUsers ? JSON.parse(storedUsers) : []
-
-    const user = users.find((u: any) => u.email === email && u.password === password)
-
-    if (!user) {
-        throw new Error("Invalid email or password")
-    }
-
-    const token = `mock_token_${Date.now()}`
-
-    return { token, user: { id: user.id, name: user.name, email: user.email } }
-}
-
 export const useAuthStore = create<AuthState>()(
     persist(
         (set) => ({
@@ -67,29 +27,12 @@ export const useAuthStore = create<AuthState>()(
 
             signup: async (name: string, email: string, password: string) => {
                 try {
-                    // Store user in localStorage for demo purposes
-                    if (typeof window !== "undefined") {
-                        const storedUsers = localStorage.getItem("registered_users")
-                        const users = storedUsers ? JSON.parse(storedUsers) : []
+                    // Call the actual API endpoint
+                    const response = await signupAPI({ name, email, password })
 
-                        // Check if user already exists
-                        if (users.find((u: any) => u.email === email)) {
-                            throw new Error("User with this email already exists")
-                        }
-
-                        const newUser = {
-                            id: `user_${Date.now()}`,
-                            name,
-                            email,
-                            password, // In real app, this should be hashed
-                        }
-
-                        users.push(newUser)
-                        localStorage.setItem("registered_users", JSON.stringify(users))
-                    }
-
-                    // Don't auto-login after signup, just return success
-                    // User will need to login manually
+                    // Signup successful - don't auto-login
+                    // User will need to login manually after signup
+                    // The API should return success message or user data
                 } catch (error) {
                     throw error
                 }
@@ -97,7 +40,16 @@ export const useAuthStore = create<AuthState>()(
 
             login: async (email: string, password: string) => {
                 try {
-                    const { token, user } = await mockLogin(email, password)
+                    // Call the actual API endpoint
+                    const response = await loginAPI({ email, password })
+
+                    // Extract token and user from response
+                    const token = response.access_token
+                    const user: User = {
+                        id: response.user.id.toString(),
+                        name: response.user.name,
+                        email: response.user.email,
+                    }
 
                     set({
                         user,

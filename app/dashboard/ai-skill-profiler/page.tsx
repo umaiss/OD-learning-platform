@@ -9,9 +9,17 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { generateProfileAPI } from "@/lib/api/profile"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 export default function AISkillProfilerPage() {
   const router = useRouter()
+  const { user } = useAuthStore(
+    useShallow((state) => ({
+      user: state.user,
+    }))
+  )
   const [mounted, setMounted] = useState(false)
   const [currentRole, setCurrentRole] = useState("")
   const [stackInput, setStackInput] = useState("")
@@ -19,6 +27,8 @@ export default function AISkillProfilerPage() {
   const [proficiency, setProficiency] = useState<string>("")
   const [learningGoals, setLearningGoals] = useState("")
   const [linkedInConnected, setLinkedInConnected] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     setMounted(true)
@@ -43,19 +53,60 @@ export default function AISkillProfilerPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Save form data and navigate to insights page
-    const formData = {
-      currentRole,
-      primaryStack,
-      proficiency,
-      learningGoals,
-      linkedInConnected,
+    setError("")
+    setLoading(true)
+
+    // Validate required fields
+    if (!currentRole || !proficiency || !learningGoals || primaryStack.length === 0) {
+      setError("Please fill in all required fields")
+      setLoading(false)
+      return
     }
-    // Store in sessionStorage or pass as query params
-    sessionStorage.setItem("profileData", JSON.stringify(formData))
-    router.push("/dashboard/ai-skill-profiler/insights")
+
+    try {
+      // Get user ID - the backend will verify access to learner
+      // Note: learner_id should be the Learner.id, not User.id
+      // For now, we'll use user.id and the backend will handle the mapping
+      // or you may need to fetch the learner profile first
+      const userId = user?.learner_id ? parseInt(user.learner_id) : 0
+
+      if (userId === 0) {
+        throw new Error("User not authenticated. Please login again.")
+      }
+
+      // Call the API to generate profile
+      // Note: If user doesn't have a learner profile yet, backend will need to create one
+      // or you may need to pass the actual learner_id if it's different from user_id
+      const response = await generateProfileAPI({
+        learnerId: userId, // This should be learner.id, but using user.id for now
+        currentRole,
+        primaryStack,
+        learningGoals,
+        proficiency,
+        linkedInConnected,
+      })
+
+      console.log("response from generateProfileAPI", response)
+
+      // Store response in sessionStorage for insights page
+      sessionStorage.setItem("profileData", JSON.stringify({
+        currentRole,
+        primaryStack,
+        proficiency,
+        learningGoals,
+        linkedInConnected,
+        generatedData: response,
+      }))
+
+      // Navigate to insights page
+      router.push("/dashboard/ai-skill-profiler/insights")
+    } catch (err: any) {
+      setError(err.message || "Failed to generate profile. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -72,6 +123,12 @@ export default function AISkillProfilerPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 animate-fade-in">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
           {/* Current Role */}
           <Card className={`border-0 shadow-sm hover-lift animate-fade-in-up animate-delay-100 ${!mounted ? "opacity-0" : ""}`}>
             <CardHeader className="pb-4">
@@ -282,11 +339,20 @@ export default function AISkillProfilerPage() {
 
           {/* Submit Button */}
           <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={loading}
+            >
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-              Generate Profile from AI
+            <Button
+              type="submit"
+              className="bg-primary hover:bg-primary/90 text-white"
+              disabled={loading}
+            >
+              {loading ? "Generating Profile..." : "Generate Profile from AI"}
             </Button>
           </div>
         </form>
