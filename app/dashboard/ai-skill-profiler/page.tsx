@@ -70,7 +70,7 @@ export default function AISkillProfilerPage() {
       // Note: learner_id should be the Learner.id, not User.id
       // For now, we'll use user.id and the backend will handle the mapping
       // or you may need to fetch the learner profile first
-      const userId = user?.learner_id ? parseInt(user?.learner_id) : 0
+      const userId = user?.learner_id || (user?.id ? parseInt(user.id) : 0)
 
       if (userId === 0) {
         throw new Error("User not authenticated. Please login again.")

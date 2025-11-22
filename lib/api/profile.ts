@@ -90,3 +90,38 @@ export async function generateProfileAPI(
     }
 }
 
+interface SaveProfileRequest {
+    learner_id: number
+    ai_analysis: string
+    strengths: string[]
+    growth_areas: string[]
+    skill_map: Record<string, string>
+}
+
+interface SaveProfileResponse {
+    message: string
+    [key: string]: any
+}
+
+/**
+ * Save profile data
+ * POST /api/v1/profile/save
+ */
+export async function saveProfileAPI(
+    data: SaveProfileRequest
+): Promise<SaveProfileResponse> {
+    try {
+        const response = await apiPost<SaveProfileResponse>(
+            "/api/v1/profile/save",
+            data
+        )
+
+        return response
+    } catch (error: any) {
+        if (error.message) {
+            throw error
+        }
+        throw new Error("Failed to save profile. Please try again.")
+    }
+}
+

@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { saveProfileAPI } from "@/lib/api/profile"
+import { generateLearningPathAPI } from "@/lib/api/learning-path"
+import { useAuthStore } from "@/store/auth-store"
+import { useShallow } from "zustand/react/shallow"
 
 interface SkillData {
   skill: string
@@ -23,6 +27,11 @@ interface APIResponse {
 
 export default function AISkillInsightsPage() {
   const router = useRouter()
+  const { user } = useAuthStore(
+    useShallow((state) => ({
+      user: state.user,
+    }))
+  )
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [insights, setInsights] = useState<{
@@ -32,6 +41,8 @@ export default function AISkillInsightsPage() {
     skillMap: SkillData[]
   } | null>(null)
   const [error, setError] = useState("")
+  const [generatingPath, setGeneratingPath] = useState(false)
+  const [apiResponse, setApiResponse] = useState<any>(null)
 
   useEffect(() => {
     // Get data from sessionStorage
@@ -117,6 +128,7 @@ export default function AISkillInsightsPage() {
       }
 
       setInsights(mappedInsights)
+      setApiResponse(apiResponse) // Store original API response for later use
       setLoading(false)
       setTimeout(() => setMounted(true), 100)
     } catch (err: any) {
@@ -124,6 +136,55 @@ export default function AISkillInsightsPage() {
       setLoading(false)
     }
   }, [])
+
+  const handleGenerateLearningPath = async () => {
+    if (!apiResponse) {
+      setError("Missing profile data. Please generate your profile again.")
+      return
+    }
+
+    setGeneratingPath(true)
+    setError("")
+
+    try {
+      // Get original form data from sessionStorage to get experience and role
+      const storedData = sessionStorage.getItem("profileData")
+      const formData = storedData ? JSON.parse(storedData) : null
+
+      // First, save the profile
+      await saveProfileAPI({
+        learner_id: apiResponse.learner_id,
+        ai_analysis: apiResponse.ai_analysis,
+        strengths: apiResponse.strengths,
+        growth_areas: apiResponse.growth_areas,
+        skill_map: apiResponse.skill_map,
+      })
+
+      // Then, generate the learning path
+      // Use experience from form data or default to 0
+      // Use role from form data (currentRole) or default to "developer"
+      const experience = formData?.experience || 0
+      const role = formData?.currentRole || "developer"
+
+      const learningPathResponse = await generateLearningPathAPI({
+        learner_id: apiResponse.learner_id,
+        skill_map: apiResponse.skill_map,
+        experience: experience,
+        role: role,
+      })
+
+      // Store learning path response
+      sessionStorage.setItem("learningPathData", JSON.stringify(learningPathResponse))
+
+      // Navigate to learning path page or show success message
+      // You can create a new page for learning path or show it in a modal
+      router.push("/dashboard/learning-path")
+    } catch (err: any) {
+      setError(err.message || "Failed to generate learning path. Please try again.")
+    } finally {
+      setGeneratingPath(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -377,14 +438,24 @@ export default function AISkillInsightsPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-4">
+          {error && (
+            <div className="flex-1 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
           <Button
             variant="outline"
             onClick={() => router.push("/dashboard/ai-skill-profiler")}
+            disabled={generatingPath}
           >
             Update Profile
           </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-white">
-            Generate Learing Path
+          <Button
+            className="bg-primary hover:bg-primary/90 text-white"
+            onClick={handleGenerateLearningPath}
+            disabled={generatingPath || !apiResponse}
+          >
+            {generatingPath ? "Generating..." : "Generate Learning Path"}
           </Button>
         </div>
       </div>

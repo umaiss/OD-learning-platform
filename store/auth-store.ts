@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
                         id: response.user.id.toString(),
                         name: response.user.name,
                         email: response.user.email,
-                        learner_id: response.user.learner_id,
+                        learner_id: (response.user as any).learner_id || null,
                     }
 
                     set({
