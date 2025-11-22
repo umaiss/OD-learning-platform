@@ -23,6 +23,11 @@ langgraph==0.2.40
 # Vector embeddings
 aiohttp==3.10.11
 
+# Web scraping
+beautifulsoup4==4.12.3
+requests==2.31.0
+selenium==4.18.1
+
 # Testing
 pytest==8.3.3
 pytest-asyncio==0.24.0

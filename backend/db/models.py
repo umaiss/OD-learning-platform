@@ -254,3 +254,71 @@ class Progress(Base):
     # Relationships
     learner = relationship("Learner", back_populates="progress_records")
 
+
+class ModuleProgress(Base):
+    """Module progress tracking model for learning plan modules"""
+    __tablename__ = "module_progress"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    learner_id = Column(Integer, ForeignKey("learners.id"), nullable=False, index=True)
+    learning_plan_id = Column(Integer, ForeignKey("learning_plans.id"), nullable=False, index=True)
+    week_number = Column(Integer, nullable=False)  # Week number (1, 2, 3, etc.)
+    module_name = Column(String, nullable=False, index=True)  # Module identifier/name
+    completion_percentage = Column(Float, default=0.0)  # 0.0 to 100.0
+    is_completed = Column(Boolean, default=False, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)  # When module was completed
+    time_spent_minutes = Column(Integer, default=0)  # Time spent on this module
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    learner = relationship("Learner")
+    learning_plan = relationship("LearningPlan")
+
+
+class WeekProgress(Base):
+    """Week progress tracking model for learning plan weeks"""
+    __tablename__ = "week_progress"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    learner_id = Column(Integer, ForeignKey("learners.id"), nullable=False, index=True)
+    learning_plan_id = Column(Integer, ForeignKey("learning_plans.id"), nullable=False, index=True)
+    week_number = Column(Integer, nullable=False, index=True)  # Week number (1, 2, 3, etc.)
+    is_completed = Column(Boolean, default=False, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)  # When week was completed
+    completed_modules_count = Column(Integer, default=0)  # Number of completed modules in this week
+    total_modules_count = Column(Integer, default=0)  # Total modules in this week
+    xp_earned = Column(Integer, default=0)  # XP earned for this week
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    learner = relationship("Learner")
+    learning_plan = relationship("LearningPlan")
+
+
+class Course(Base):
+    """Curated course database for learning materials"""
+    __tablename__ = "courses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False, index=True)
+    url = Column(String, nullable=False, unique=True, index=True)
+    platform = Column(String, nullable=False, index=True)  # udemy, coursera, youtube, freecodecamp, etc.
+    description = Column(Text)  # Course description
+    topics = Column(JSON)  # List of topics/tags for search (e.g., ["react", "javascript", "frontend"])
+    difficulty = Column(String, index=True)  # beginner, intermediate, advanced
+    rating = Column(Float, default=0.0)  # Course rating (0.0 to 5.0)
+    duration_hours = Column(Integer)  # Estimated duration in hours
+    price = Column(Float, default=0.0)  # Price (0.0 for free courses)
+    instructor = Column(String)  # Instructor name
+    language = Column(String, default="English")
+    is_verified = Column(Boolean, default=False)  # Manually verified courses
+    is_free = Column(Boolean, default=False, index=True)
+    enrollment_count = Column(Integer, default=0)  # Number of enrollments (if available)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    # Courses can be linked to modules through learning materials in the plan JSON
+

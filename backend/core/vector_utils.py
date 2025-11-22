@@ -16,6 +16,7 @@ async def create_vector_embedding(
     learner_id: Optional[int] = None,
     learning_plan_id: Optional[int] = None,
     generated_content_id: Optional[int] = None,
+    course_id: Optional[int] = None,
     meta_data: Optional[Dict[str, Any]] = None
 ) -> VectorEmbedding:
     """
@@ -48,6 +49,7 @@ async def create_vector_embedding(
             learner_id=learner_id,
             learning_plan_id=learning_plan_id,
             generated_content_id=generated_content_id,
+            course_id=course_id,
             meta_data=json.dumps(meta_data) if meta_data else None
         )
         
@@ -76,7 +78,7 @@ async def create_embeddings_for_content(
         text: Text content to embed
         content_type: Type of content
         learner_id: Optional learner ID
-        **kwargs: Additional foreign key parameters
+        **kwargs: Additional foreign key parameters (course_id, learning_plan_id, etc.)
         
     Returns:
         VectorEmbedding: Created embedding or None if failed

@@ -15,9 +15,10 @@ class VectorEmbedding(Base):
     learner_id = Column(Integer, ForeignKey("learners.id"), nullable=True)
     learning_plan_id = Column(Integer, ForeignKey("learning_plans.id"), nullable=True)
     generated_content_id = Column(Integer, ForeignKey("generated_content.id"), nullable=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)
     
     content_type = Column(String, nullable=False, index=True)  
-    # Types: content, skill, learning_path, learner, learning_plan, generated_content, lesson_text
+    # Types: content, skill, learning_path, learner, learning_plan, generated_content, lesson_text, course
     
     text = Column(Text, nullable=False)
     embedding = Column(Vector(settings.vector_dimension), nullable=False)

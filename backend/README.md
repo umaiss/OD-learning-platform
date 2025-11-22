@@ -97,7 +97,8 @@ All endpoints are prefixed with `/api/v1`:
 - `DELETE /api/v1/skill-profile/{profile_id}` - Delete skill profile
 
 ### Learning Path
-- `POST /api/v1/learning-path/generate` - Generate learning path
+- `POST /api/v1/learning-path/generate` - Generate and save learning path (automatically saves to database)
+- `POST /api/v1/learning-path/save` - Save a learning path manually (for externally generated or modified paths)
 - `POST /api/v1/learning-path/` - Create learning path
 - `GET /api/v1/learning-path/user/{user_id}` - Get user learning paths
 - `GET /api/v1/learning-path/{path_id}` - Get learning path
@@ -137,6 +138,16 @@ All endpoints are prefixed with `/api/v1`:
 - `PATCH /api/v1/progress/user/{user_id}/entity/{entity_type}/{entity_id}` - Upsert progress
 - `GET /api/v1/progress/user/{user_id}/stats` - Get user statistics
 - `DELETE /api/v1/progress/{progress_id}` - Delete progress
+
+### Module Progress & Learning Materials
+- `POST /api/v1/module-progress/add-materials` - Add learning materials (Udemy, Coursera, etc.) to a module
+- `POST /api/v1/module-progress/update` - Update module progress (auto-marks week as completed when all modules are done)
+- `POST /api/v1/module-progress/get-progress` - Get complete progress for a learning plan (weeks, modules, XP)
+
+### Courses
+- `POST /api/v1/courses/suggest` - Suggest courses for a module (hybrid: local DB + LLM)
+- `POST /api/v1/courses/add` - Add a course to the database from URL (manager only)
+- `GET /api/v1/courses/search` - Search courses in the database
 
 ## Project Structure
 
@@ -185,6 +196,8 @@ The API is configured to accept requests from `http://localhost:3000` (Next.js d
 - **Content**: Generated learning content
 - **Mission**: Gamified learning missions
 - **Progress**: Progress tracking records
+- **ModuleProgress**: Individual module progress tracking (completion percentage, time spent)
+- **WeekProgress**: Week-level progress tracking (auto-marked when all modules completed)
 - **ChatMessage**: Chatbot conversation history
 - **VectorEmbedding**: Vector embeddings for semantic search
 
