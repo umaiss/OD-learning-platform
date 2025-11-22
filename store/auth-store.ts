@@ -6,6 +6,7 @@ interface User {
     id: string
     name: string
     email: string
+    learner_id: number
 }
 
 interface AuthState {
@@ -49,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
                         id: response.user.id.toString(),
                         name: response.user.name,
                         email: response.user.email,
+                        learner_id: response.user.learner_id,
                     }
 
                     set({
