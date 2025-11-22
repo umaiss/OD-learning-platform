@@ -29,45 +29,108 @@ class CourseScraper:
         For production, consider using Udemy's API or manual data entry.
         """
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, timeout=10, allow_redirects=True)
             if response.status_code != 200:
+                print(f"  ⚠ HTTP {response.status_code} for {url}")
+                return None
+            
+            # Check if we got redirected to login or blocked page
+            if 'login' in response.url.lower() or 'sign-in' in response.url.lower():
+                print(f"  ⚠ Redirected to login page (anti-scraping measure)")
                 return None
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Extract course information (Udemy structure may vary)
-            title_elem = soup.find('h1', class_='ud-heading-xl')
-            title = title_elem.get_text(strip=True) if title_elem else "Unknown Course"
+            # Try multiple selectors for title (Udemy changes their HTML structure)
+            title = None
+            title_selectors = [
+                'h1.ud-heading-xl',
+                'h1[data-purpose="course-title"]',
+                'h1',
+                'title'
+            ]
+            for selector in title_selectors:
+                title_elem = soup.select_one(selector)
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    break
+            
+            if not title or title == "Unknown Course":
+                # Try to extract from page title
+                title_tag = soup.find('title')
+                if title_tag:
+                    title = title_tag.get_text(strip=True).split('|')[0].strip()
+            
+            if not title:
+                print(f"  ⚠ Could not extract title from {url}")
+                return None
             
             # Try to find description
-            desc_elem = soup.find('div', class_='ud-text-sm')
-            description = desc_elem.get_text(strip=True) if desc_elem else ""
+            description = ""
+            desc_selectors = [
+                'div[data-purpose="course-description"]',
+                'div.ud-text-sm',
+                'div.course-description',
+                'meta[name="description"]'
+            ]
+            for selector in desc_selectors:
+                desc_elem = soup.select_one(selector)
+                if desc_elem:
+                    if desc_elem.name == 'meta':
+                        description = desc_elem.get('content', '')
+                    else:
+                        description = desc_elem.get_text(strip=True)
+                    if description:
+                        break
             
             # Extract rating (if available)
-            rating_elem = soup.find('span', class_='ud-heading-sm')
             rating = 0.0
-            if rating_elem:
-                rating_text = rating_elem.get_text(strip=True)
-                rating_match = re.search(r'(\d+\.?\d*)', rating_text)
-                if rating_match:
-                    rating = float(rating_match.group(1))
+            rating_selectors = [
+                'span[data-purpose="rating-number"]',
+                'div.rating-text',
+                'span.ud-heading-sm'
+            ]
+            for selector in rating_selectors:
+                rating_elem = soup.select_one(selector)
+                if rating_elem:
+                    rating_text = rating_elem.get_text(strip=True)
+                    rating_match = re.search(r'(\d+\.?\d*)', rating_text)
+                    if rating_match:
+                        try:
+                            rating = float(rating_match.group(1))
+                            break
+                        except:
+                            pass
             
             # Extract instructor
-            instructor_elem = soup.find('a', class_='ud-instructor')
-            instructor = instructor_elem.get_text(strip=True) if instructor_elem else "Unknown"
+            instructor = "Unknown"
+            instructor_selectors = [
+                'a[data-purpose="instructor-name"]',
+                'a.ud-instructor',
+                'div.instructor-name'
+            ]
+            for selector in instructor_selectors:
+                instructor_elem = soup.select_one(selector)
+                if instructor_elem:
+                    instructor = instructor_elem.get_text(strip=True)
+                    if instructor:
+                        break
             
             return {
                 'title': title,
                 'url': url,
                 'platform': 'udemy',
-                'description': description[:1000] if description else "",  # Limit description length
+                'description': description[:1000] if description else "",
                 'rating': rating,
                 'instructor': instructor,
                 'is_free': False,  # Most Udemy courses are paid
                 'is_verified': False  # Needs manual verification
             }
+        except requests.exceptions.RequestException as e:
+            print(f"  ⚠ Network error scraping {url}: {str(e)}")
+            return None
         except Exception as e:
-            print(f"Error scraping Udemy course {url}: {str(e)}")
+            print(f"  ⚠ Error scraping Udemy course {url}: {str(e)}")
             return None
     
     def scrape_coursera_course(self, url: str) -> Optional[Dict]:
@@ -76,19 +139,61 @@ class CourseScraper:
         Note: Coursera has strict anti-scraping measures. This is a basic implementation.
         """
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, timeout=10, allow_redirects=True)
             if response.status_code != 200:
+                print(f"  ⚠ HTTP {response.status_code} for {url}")
                 return None
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Extract course information
-            title_elem = soup.find('h1')
-            title = title_elem.get_text(strip=True) if title_elem else "Unknown Course"
+            # Try multiple selectors for title
+            title = None
+            title_selectors = [
+                'h1.banner-title',
+                'h1.cds-119',
+                'h1',
+                'title'
+            ]
+            for selector in title_selectors:
+                title_elem = soup.select_one(selector)
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    if title and title != "Unknown Course":
+                        break
+            
+            if not title:
+                # Try meta tags
+                meta_title = soup.find('meta', property='og:title')
+                if meta_title:
+                    title = meta_title.get('content', '')
+            
+            if not title:
+                print(f"  ⚠ Could not extract title from {url}")
+                return None
             
             # Try to find description
-            desc_elem = soup.find('div', class_='description')
-            description = desc_elem.get_text(strip=True) if desc_elem else ""
+            description = ""
+            desc_selectors = [
+                'div.course-description',
+                'div.description',
+                'meta[name="description"]',
+                'meta[property="og:description"]'
+            ]
+            for selector in desc_selectors:
+                desc_elem = soup.select_one(selector)
+                if desc_elem:
+                    if desc_elem.name == 'meta':
+                        description = desc_elem.get('content', '')
+                    else:
+                        description = desc_elem.get_text(strip=True)
+                    if description:
+                        break
+            
+            # Try to extract instructor
+            instructor = "Coursera"
+            instructor_elem = soup.select_one('div.instructor-name, span.instructor')
+            if instructor_elem:
+                instructor = instructor_elem.get_text(strip=True)
             
             return {
                 'title': title,
@@ -96,12 +201,15 @@ class CourseScraper:
                 'platform': 'coursera',
                 'description': description[:1000] if description else "",
                 'rating': 0.0,
-                'instructor': "Coursera",
+                'instructor': instructor,
                 'is_free': False,  # Most Coursera courses are paid
                 'is_verified': False
             }
+        except requests.exceptions.RequestException as e:
+            print(f"  ⚠ Network error scraping {url}: {str(e)}")
+            return None
         except Exception as e:
-            print(f"Error scraping Coursera course {url}: {str(e)}")
+            print(f"  ⚠ Error scraping Coursera course {url}: {str(e)}")
             return None
     
     def scrape_youtube_video(self, url: str) -> Optional[Dict]:

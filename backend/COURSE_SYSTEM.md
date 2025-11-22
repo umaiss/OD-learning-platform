@@ -149,10 +149,17 @@ Example module structure:
 }
 ```
 
+## Current Status
+
+✅ **30 courses** in database (manually curated via seed script)
+✅ **Vector embeddings** created for all courses
+✅ **Scraper methods** implemented (but may fail due to anti-scraping)
+
 ## Expanding the Course Database
 
-### Method 1: Seed Script
-Edit `scrapers/seed_courses.py` and add more courses to the list.
+### Method 1: Seed Script (Recommended)
+Edit `scrapers/seed_courses.py` and add more courses to the `popular_courses` list.
+Currently has 30 courses - easy to expand to 100+.
 
 ### Method 2: API Endpoint
 Use `/api/v1/courses/add` to add courses programmatically.
