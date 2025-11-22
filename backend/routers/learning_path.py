@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Dict, List
+from typing import Dict, List, Optional
 from db.database import get_db
 from db.models import Learner, LearningPlan, User
 from agents.learning_path import LearningPathGenerator, LearningPathOutput, ModuleInfo
@@ -14,9 +14,9 @@ path_generator = LearningPathGenerator()
 
 class GenerateLearningPathRequest(BaseModel):
     learner_id: int
-    skill_map: Dict[str, str]
-    experience: int
-    role: str
+    skill_map: Optional[Dict[str, str]] = None  # Optional: will use saved profile if not provided
+    experience: Optional[int] = None  # Optional: will use saved profile if not provided
+    role: Optional[str] = None  # Optional: will use saved profile if not provided
 
 
 class GenerateLearningPathResponse(BaseModel):
@@ -35,16 +35,40 @@ async def generate_learning_path(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate a personalized learning path for a learner (requires authentication)"""
+    """Generate a personalized learning path for a learner (requires authentication)
+    
+    If skill_map, experience, or role are not provided, they will be fetched from the learner's saved profile.
+    """
     try:
         # Verify user has access to this learner
         learner = verify_learner_access_helper(request.learner_id, current_user, db)
         
+        # Use provided values or fall back to saved profile data
+        skill_map = request.skill_map
+        experience = request.experience
+        role = request.role
+        
+        # If not provided, try to get from saved profile
+        if skill_map is None:
+            if learner.skill_map:
+                skill_map = learner.skill_map
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="skill_map is required. Either provide it in the request or generate a profile first using /api/v1/profile/generate"
+                )
+        
+        if experience is None:
+            experience = learner.experience_years or 0
+        
+        if role is None:
+            role = learner.professional_role or "developer"
+        
         # Call the agent
         result: LearningPathOutput = await path_generator.generate_learning_path_plan(
-            skill_map=request.skill_map,
-            experience=request.experience,
-            role=request.role
+            skill_map=skill_map,
+            experience=experience,
+            role=role
         )
         
         # Convert modules to dict for JSON storage
