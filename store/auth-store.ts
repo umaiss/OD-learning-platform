@@ -6,7 +6,7 @@ interface User {
     id: string
     name: string
     email: string
-    learner_id: number
+    learner_id: number | null
 }
 
 interface AuthState {

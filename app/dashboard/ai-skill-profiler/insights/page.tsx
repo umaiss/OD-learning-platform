@@ -12,77 +12,117 @@ interface SkillData {
   category: string
 }
 
+interface APIResponse {
+  learner_id: number
+  ai_analysis: string
+  strengths: string[]
+  growth_areas: string[]
+  skill_map: Record<string, string>
+  message: string
+}
+
 export default function AISkillInsightsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
-
-  // Mock AI insights data - in real app, this would come from API
-  const [insights] = useState({
-    remarks: "Based on your LinkedIn profile analysis, you demonstrate strong expertise in modern web development technologies. Your profile shows consistent growth in React and JavaScript ecosystems, with notable contributions to open-source projects. Your experience spans both frontend and backend development, indicating a well-rounded skill set.",
-    strengths: [
-      {
-        title: "Frontend Expertise",
-        description: "Strong proficiency in React, JavaScript, and modern UI frameworks. Demonstrated ability to build scalable and performant user interfaces.",
-      },
-      {
-        title: "Full-Stack Capability",
-        description: "Proven experience in both frontend and backend development, with expertise in Node.js and RESTful API design.",
-      },
-      {
-        title: "Problem-Solving Skills",
-        description: "Active contributor to technical discussions and problem-solving in team environments. Strong analytical thinking.",
-      },
-      {
-        title: "Continuous Learning",
-        description: "Shows commitment to staying updated with latest technologies and best practices in software development.",
-      },
-    ],
-    growthAreas: [
-      {
-        title: "System Design & Architecture",
-        description: "Consider deepening your knowledge in distributed systems, microservices architecture, and scalability patterns.",
-        priority: "High",
-      },
-      {
-        title: "DevOps & Cloud Technologies",
-        description: "Expand your expertise in CI/CD pipelines, containerization (Docker/Kubernetes), and cloud platforms (AWS/Azure/GCP).",
-        priority: "Medium",
-      },
-      {
-        title: "Advanced TypeScript",
-        description: "While you have TypeScript experience, advancing to advanced patterns, generics, and type system mastery would be beneficial.",
-        priority: "Medium",
-      },
-      {
-        title: "Testing & Quality Assurance",
-        description: "Enhance your skills in automated testing, test-driven development, and quality assurance methodologies.",
-        priority: "Low",
-      },
-    ],
-    skillMap: [
-      { skill: "React", level: 92, category: "Frontend" },
-      { skill: "JavaScript", level: 88, category: "Frontend" },
-      { skill: "TypeScript", level: 75, category: "Frontend" },
-      { skill: "Node.js", level: 82, category: "Backend" },
-      { skill: "Express.js", level: 78, category: "Backend" },
-      { skill: "MongoDB", level: 70, category: "Backend" },
-      { skill: "PostgreSQL", level: 65, category: "Backend" },
-      { skill: "Git", level: 85, category: "Tools" },
-      { skill: "Docker", level: 60, category: "DevOps" },
-      { skill: "AWS", level: 55, category: "DevOps" },
-      { skill: "CI/CD", level: 58, category: "DevOps" },
-      { skill: "System Design", level: 50, category: "Architecture" },
-    ],
-  })
+  const [insights, setInsights] = useState<{
+    remarks: string
+    strengths: Array<{ title: string; description: string }>
+    growthAreas: Array<{ title: string; description: string; priority: string }>
+    skillMap: SkillData[]
+  } | null>(null)
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    // Simulate AI processing time
-    const timer = setTimeout(() => {
+    // Get data from sessionStorage
+    const storedData = sessionStorage.getItem("profileData")
+
+    if (!storedData) {
+      setError("No profile data found. Please generate your profile first.")
+      setLoading(false)
+      return
+    }
+
+    try {
+      const parsedData = JSON.parse(storedData)
+      const apiResponse: APIResponse = parsedData.generatedData
+
+      if (!apiResponse) {
+        setError("Invalid profile data. Please generate your profile again.")
+        setLoading(false)
+        return
+      }
+
+      // Map API response to UI format
+      const mappedInsights = {
+        remarks: apiResponse.ai_analysis || "No analysis available.",
+
+        // Map strengths array to objects with title and description
+        strengths: apiResponse.strengths.map((strength) => ({
+          title: strength,
+          description: `Strong proficiency in ${strength}. This is one of your key technical strengths based on your profile analysis.`,
+        })),
+
+        // Map growth_areas array to objects with title, description, and priority
+        growthAreas: apiResponse.growth_areas.map((area, index) => {
+          // Assign priority based on position (first items are higher priority)
+          let priority = "Low"
+          if (index < 2) priority = "High"
+          else if (index < 4) priority = "Medium"
+
+          return {
+            title: area,
+            description: `Focus on developing your skills in ${area}. This area presents an opportunity for growth and career advancement.`,
+            priority,
+          }
+        }),
+
+        // Map skill_map object to array with levels and categories
+        skillMap: Object.entries(apiResponse.skill_map || {}).map(([skill, level]) => {
+          // Convert proficiency level to percentage
+          const levelMap: Record<string, number> = {
+            beginner: 0,
+            intermediate: 40,
+            advanced: 75,
+            expert: 90,
+          }
+
+          // Determine category based on skill name
+          const getCategory = (skillName: string): string => {
+            const lowerSkill = skillName.toLowerCase()
+            if (lowerSkill.includes("react") || lowerSkill.includes("frontend") || lowerSkill.includes("ui") || lowerSkill.includes("vue") || lowerSkill.includes("angular")) {
+              return "Frontend"
+            }
+            if (lowerSkill.includes("node") || lowerSkill.includes("backend") || lowerSkill.includes("api") || lowerSkill.includes("server")) {
+              return "Backend"
+            }
+            if (lowerSkill.includes("aws") || lowerSkill.includes("devops") || lowerSkill.includes("docker") || lowerSkill.includes("kubernetes") || lowerSkill.includes("ci/cd")) {
+              return "DevOps"
+            }
+            if (lowerSkill.includes("architecture") || lowerSkill.includes("design") || lowerSkill.includes("system")) {
+              return "Architecture"
+            }
+            if (lowerSkill.includes("management") || lowerSkill.includes("leadership") || lowerSkill.includes("project")) {
+              return "Management"
+            }
+            return "Other"
+          }
+
+          return {
+            skill,
+            level: levelMap[level.toLowerCase()] || 50,
+            category: getCategory(skill),
+          }
+        }),
+      }
+
+      setInsights(mappedInsights)
       setLoading(false)
       setTimeout(() => setMounted(true), 100)
-    }, 2000)
-    return () => clearTimeout(timer)
+    } catch (err: any) {
+      setError("Failed to parse profile data. Please try again.")
+      setLoading(false)
+    }
   }, [])
 
   if (loading) {
@@ -92,8 +132,44 @@ export default function AISkillInsightsPage() {
           <div className="text-center space-y-4">
             <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-sm text-muted-foreground">
-              AI is analyzing your LinkedIn profile...
+              Loading your AI-generated insights...
             </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error || !insights) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center space-y-4 max-w-md">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold">Unable to Load Insights</h3>
+            <p className="text-sm text-muted-foreground">{error || "No insights data available"}</p>
+            <Button
+              onClick={() => router.push("/dashboard/ai-skill-profiler")}
+              className="mt-4"
+            >
+              Generate Profile
+            </Button>
           </div>
         </div>
       </DashboardLayout>
@@ -107,6 +183,8 @@ export default function AISkillInsightsPage() {
       DevOps: "bg-purple-500",
       Tools: "bg-orange-500",
       Architecture: "bg-pink-500",
+      Management: "bg-indigo-500",
+      Other: "bg-gray-500",
     }
     return colors[category] || "bg-gray-500"
   }
@@ -219,10 +297,9 @@ export default function AISkillInsightsPage() {
                       <span
                         className={`
                           text-xs px-2 py-0.5 rounded
-                          ${
-                            area.priority === "High"
-                              ? "bg-red-100 text-red-700"
-                              : area.priority === "Medium"
+                          ${area.priority === "High"
+                            ? "bg-red-100 text-red-700"
+                            : area.priority === "Medium"
                               ? "bg-yellow-100 text-yellow-700"
                               : "bg-blue-100 text-blue-700"
                           }
@@ -268,6 +345,7 @@ export default function AISkillInsightsPage() {
                 const categorySkills = insights.skillMap.filter(
                   (s) => s.category === category
                 )
+                console.log("categorySkills", categorySkills)
                 return (
                   <div key={category} className="space-y-3">
                     <h4 className="text-sm font-semibold text-foreground">{category}</h4>
@@ -281,7 +359,7 @@ export default function AISkillInsightsPage() {
                           <div className="h-2 bg-muted rounded-full overflow-hidden">
                             <div
                               className={`h-full ${getCategoryColor(category)} rounded-full transition-all duration-1000 ease-out`}
-                              style={{ 
+                              style={{
                                 width: `${skill.level}%`,
                                 animation: `fadeIn 0.5s ease-out ${index * 0.1}s both`
                               }}

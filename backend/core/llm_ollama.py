@@ -18,7 +18,7 @@ def get_llm() -> LLM:
     Returns:
         LLM: Configured Ollama instance
     """
-    model_name = os.getenv("OLLAMA_MODEL", "llama3.1")
+    model_name = os.getenv("OLLAMA_MODEL", "llama3.2")
     
     return Ollama(
         model=model_name,
