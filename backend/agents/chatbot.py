@@ -4,6 +4,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from core.llm import llm_provider
 from core.llm_ollama import generate_text
+from core.embeddings import generate_embedding
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from db.vector import VectorEmbedding
@@ -122,40 +123,77 @@ class ChatbotAgent:
             List of relevant content text snippets
         """
         try:
-            # Try vector similarity search first
-            # Note: This requires the query to be embedded first
-            # For now, we'll use a text-based fallback
+            # Generate embedding for the query
+            query_embedding = await generate_embedding(query)
             
-            # Option 1: If embeddings exist, use cosine similarity
-            # query_embedding = await self._generate_embedding(query)
-            # results = db.execute(
-            #     text("""
-            #         SELECT text, 1 - (embedding <=> :query_embedding::vector) as similarity
-            #         FROM vector_embeddings
-            #         ORDER BY similarity DESC
-            #         LIMIT :limit
-            #     """),
-            #     {"query_embedding": query_embedding, "limit": limit}
-            # )
+            # Use vector similarity search with cosine distance (<=> operator)
+            # 1 - (embedding <=> query_embedding) gives cosine similarity
+            # Higher similarity = more relevant
+            # Convert list to string format for SQL query
+            embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
             
-            # Option 2: Text-based search as fallback
-            # Search for content that contains keywords from the query
-            query_keywords = query.lower().split()[:5]  # Use first 5 words
-            results = db.query(VectorEmbedding).filter(
-                VectorEmbedding.text.ilike(f"%{query[:30]}%")
-            ).limit(limit).all()
+            results = db.execute(
+                text("""
+                    SELECT text, 
+                           1 - (embedding <=> :query_embedding::vector) as similarity
+                    FROM vector_embeddings
+                    WHERE embedding IS NOT NULL
+                    ORDER BY embedding <=> :query_embedding::vector
+                    LIMIT :limit
+                """),
+                {
+                    "query_embedding": embedding_str,
+                    "limit": limit
+                }
+            )
             
-            if not results:
-                # Fallback: get recent content
-                results = db.query(VectorEmbedding).order_by(
+            # Extract results
+            retrieved = []
+            for row in results:
+                similarity = row.similarity
+                text_content = row.text
+                # Only include results with reasonable similarity (threshold: 0.3)
+                if similarity and similarity > 0.3:
+                    retrieved.append(text_content[:500])  # Limit text length
+            
+            # If vector search didn't return enough results, fallback to text search
+            if len(retrieved) < limit:
+                text_results = db.query(VectorEmbedding).filter(
+                    VectorEmbedding.text.ilike(f"%{query[:30]}%")
+                ).limit(limit - len(retrieved)).all()
+                
+                for result in text_results:
+                    if result.text not in retrieved:  # Avoid duplicates
+                        retrieved.append(result.text[:500])
+            
+            # Final fallback: get recent content if still not enough
+            if len(retrieved) < limit:
+                recent_results = db.query(VectorEmbedding).order_by(
                     VectorEmbedding.created_at.desc()
-                ).limit(limit).all()
+                ).limit(limit - len(retrieved)).all()
+                
+                for result in recent_results:
+                    if result.text not in retrieved:  # Avoid duplicates
+                        retrieved.append(result.text[:500])
             
-            return [result.text[:500] for result in results]  # Limit text length
+            return retrieved
         except Exception as e:
-            # If vector search fails, return empty list
-            print(f"Vector retrieval error: {e}")
-            return []
+            # If vector search fails, fallback to text-based search
+            print(f"Vector retrieval error: {e}, falling back to text search")
+            try:
+                results = db.query(VectorEmbedding).filter(
+                    VectorEmbedding.text.ilike(f"%{query[:30]}%")
+                ).limit(limit).all()
+                
+                if not results:
+                    results = db.query(VectorEmbedding).order_by(
+                        VectorEmbedding.created_at.desc()
+                    ).limit(limit).all()
+                
+                return [result.text[:500] for result in results]
+            except Exception as fallback_error:
+                print(f"Fallback search also failed: {fallback_error}")
+                return []
     
     def _summarize_learning_plan(self, learning_plan: Dict) -> str:
         """

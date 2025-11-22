@@ -7,6 +7,7 @@ from db.models import Learner
 from db.models import User
 from agents.skill_profiler import SkillProfiler, SkillProfileOutput, LinkedInProfile, EndorsedSkill as AgentEndorsedSkill
 from core.dependencies import get_current_user, verify_learner_access_helper
+from core.vector_utils import create_embeddings_for_content
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 skill_profiler = SkillProfiler()
@@ -51,6 +52,7 @@ class GenerateProfileResponse(BaseModel):
 
 class SaveProfileRequest(BaseModel):
     learner_id: int
+    learning_goals: str  # User's learning goals and career objectives
     ai_analysis: str
     strengths: List[str]
     growth_areas: List[str]
@@ -143,6 +145,7 @@ async def save_profile(
             )
         
         # Update learner with profile data
+        learner.learning_goals = request.learning_goals
         learner.skill_map = request.skill_map
         learner.strengths = "\n".join(request.strengths)
         learner.gaps = "\n".join(request.growth_areas)
@@ -150,6 +153,33 @@ async def save_profile(
         
         db.commit()
         db.refresh(learner)
+        
+        # Create vector embeddings for the skill profile
+        # This enables semantic search in the chatbot
+        try:
+            # Create a text representation of the skill profile for embedding
+            profile_text_parts = [
+                f"Learning Goals: {request.learning_goals}",
+                f"AI Analysis: {request.ai_analysis}",
+                f"Strengths: {', '.join(request.strengths)}",
+                f"Growth Areas: {', '.join(request.growth_areas)}",
+                "Skill Map:"
+            ]
+            
+            for skill, level in request.skill_map.items():
+                profile_text_parts.append(f"  {skill}: {level}")
+            
+            profile_text = "\n".join(profile_text_parts)
+            
+            await create_embeddings_for_content(
+                db=db,
+                text=profile_text,
+                content_type="skill_profile",
+                learner_id=request.learner_id
+            )
+        except Exception as e:
+            # Don't fail the request if embedding creation fails
+            print(f"Warning: Failed to create embeddings for skill profile: {str(e)}")
         
         return SaveProfileResponse(
             learner_id=learner.id,

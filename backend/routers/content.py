@@ -6,6 +6,7 @@ from db.database import get_db
 from db.models import Learner, GeneratedContent, User
 from agents.content_generator import ContentGenerator, LessonContentOutput, QuizQuestion
 from core.dependencies import get_current_user, verify_learner_access_helper
+from core.vector_utils import create_embeddings_for_content
 import json
 
 router = APIRouter(prefix="/content", tags=["content"])
@@ -63,6 +64,32 @@ async def generate_content(
         db.add(generated_content)
         db.commit()
         db.refresh(generated_content)
+        
+        # Create vector embeddings for the lesson text
+        # This enables semantic search in the chatbot
+        try:
+            # Create embedding for the full lesson text
+            await create_embeddings_for_content(
+                db=db,
+                text=result.lesson_text,
+                content_type="lesson_text",
+                learner_id=request.learner_id,
+                generated_content_id=generated_content.id
+            )
+            
+            # Also create embeddings for quiz questions (for better searchability)
+            for quiz_item in result.quiz:
+                quiz_text = f"{quiz_item.question} {' '.join(quiz_item.options)}"
+                await create_embeddings_for_content(
+                    db=db,
+                    text=quiz_text,
+                    content_type="quiz_question",
+                    learner_id=request.learner_id,
+                    generated_content_id=generated_content.id
+                )
+        except Exception as e:
+            # Don't fail the request if embedding creation fails
+            print(f"Warning: Failed to create embeddings for content: {str(e)}")
         
         return GenerateContentResponse(
             learner_id=request.learner_id,

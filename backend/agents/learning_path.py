@@ -38,27 +38,40 @@ class LearningPathGenerator:
         self,
         skill_map: Dict[str, str],
         experience: int,
-        role: str
+        role: str,
+        learning_goals: str = ""
     ) -> LearningPathOutput:
         """
-        Generate a personalized learning path plan based on skill map, experience, and role
+        Generate a personalized learning path plan based on skill map, experience, role, and learning goals
         
         Args:
             skill_map: Dictionary mapping skill names to levels (beginner/intermediate/advanced)
             experience: Years of experience
             role: User's role (e.g., "software engineer", "data scientist")
+            learning_goals: User's learning goals and career objectives
         
         Returns:
             LearningPathOutput: Validated learning path with duration, goals, milestones, and modules
         """
         system_prompt = (
             "You are an expert tech mentor. Create a personalized 4–6 week learning plan "
-            "based on the skill map with gamification elements."
+            "based on the skill map, learning goals, and career objectives with gamification elements. "
+            "The learning path MUST align with the user's learning goals and career aspirations."
         )
         
-        user_prompt = f"""Role: {role}
-Experience: {experience} years
-Skill Map: {skill_map}
+        user_prompt_parts = [
+            f"Role: {role}",
+            f"Experience: {experience} years",
+            f"Skill Map: {skill_map}"
+        ]
+        
+        if learning_goals:
+            user_prompt_parts.append(f"\nLearning Goals & Career Objectives: {learning_goals}")
+            user_prompt_parts.append("\nIMPORTANT: The learning path MUST be directly aligned with these learning goals and career objectives.")
+        
+        user_prompt = "\n".join(user_prompt_parts) + """
+
+Create a comprehensive learning plan that:
 
 Create a comprehensive learning plan that:
 1. Has a duration of 4-6 weeks
@@ -106,7 +119,8 @@ Example structure:
 
 Focus on addressing skill gaps and building on existing strengths from the skill map.
 Make the plan practical and achievable for someone with {experience} years of experience.
-Distribute XP points based on difficulty - easier weeks get less XP, harder weeks get more."""
+Distribute XP points based on difficulty - easier weeks get less XP, harder weeks get more.
+{f'CRITICAL: Ensure every module, goal, and milestone directly supports the learning goals: "{learning_goals}". The entire learning path should be a clear roadmap toward achieving these objectives.' if learning_goals else ''}"""
         
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         
