@@ -4,6 +4,8 @@ from .content import router as content_router
 from .missions import router as missions_router
 from .progress import router as progress_router
 from .chatbot import router as chatbot_router
+from .auth import router as auth_router
+from .mentor import router as mentor_router
 
 __all__ = [
     "profile_router",
@@ -11,6 +13,8 @@ __all__ = [
     "content_router",
     "missions_router",
     "progress_router",
-    "chatbot_router"
+    "chatbot_router",
+    "auth_router",
+    "mentor_router"
 ]
 

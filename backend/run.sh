@@ -22,6 +22,11 @@ case "$1" in
         echo "Initializing database..."
         $PYTHON db/init_db.py
         ;;
+    reset-db)
+        echo "WARNING: This will delete all data!"
+        echo "Resetting database (dropping all tables and recreating them)..."
+        $PYTHON db/reset_db.py
+        ;;
     seed)
         echo "Seeding database..."
         $PYTHON seeds/seed_data.py
@@ -35,16 +40,18 @@ case "$1" in
         ./venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000
         ;;
     *)
-        echo "Usage: ./run.sh {init-db|seed|test|server} [options]"
+        echo "Usage: ./run.sh {init-db|reset-db|seed|test|server} [options]"
         echo ""
         echo "Commands:"
         echo "  init-db    Initialize database (create tables)"
+        echo "  reset-db   Reset database (WARNING: Deletes all data!)"
         echo "  seed       Seed database with demo data"
         echo "  test       Run tests (pass pytest options after 'test')"
         echo "  server     Start the development server"
         echo ""
         echo "Examples:"
         echo "  ./run.sh init-db"
+        echo "  ./run.sh reset-db"
         echo "  ./run.sh seed"
         echo "  ./run.sh test tests/test_agents.py -v"
         echo "  ./run.sh server"

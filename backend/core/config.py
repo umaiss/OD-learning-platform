@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     debug: bool = True
     api_v1_prefix: str = "/api/v1"
     
+    # JWT Settings
+    jwt_secret_key: str = "your-secret-key-change-in-production-use-env-var"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 30 * 24 * 60  # 30 days
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
