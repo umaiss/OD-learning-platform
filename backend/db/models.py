@@ -176,6 +176,7 @@ class Learner(Base):
     skill_map = Column(JSON)  # JSON object mapping skills to levels
     strengths = Column(Text)  # Text description of strengths
     gaps = Column(Text)  # Text description of skill gaps
+    ai_analysis = Column(Text)  # AI analysis and remarks from profile generation
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
