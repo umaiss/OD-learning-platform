@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from db.database import get_db
 from db.models import Learner
 from db.models import User
-from agents.skill_profiler import SkillProfiler, SkillProfileOutput, LinkedInProfile
+from agents.skill_profiler import SkillProfiler, SkillProfileOutput, LinkedInProfile, EndorsedSkill as AgentEndorsedSkill
 from core.dependencies import get_current_user, verify_learner_access_helper
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -76,6 +76,14 @@ async def generate_profile(
         # Convert LinkedIn profile input to LinkedInProfile model if provided
         linkedin_profile = None
         if request.linkedin_profile:
+            # Convert EndorsedSkill from request to agent's EndorsedSkill model
+            endorsed_skills_list = None
+            if request.linkedin_profile.endorsedSkills:
+                endorsed_skills_list = [
+                    AgentEndorsedSkill(skill=skill.skill, endorsements=skill.endorsements)
+                    for skill in request.linkedin_profile.endorsedSkills
+                ]
+            
             linkedin_profile = LinkedInProfile(
                 id=request.linkedin_profile.id,
                 learnerId=request.linkedin_profile.learnerId,
@@ -83,7 +91,7 @@ async def generate_profile(
                 fullName=request.linkedin_profile.fullName,
                 headline=request.linkedin_profile.headline,
                 location=request.linkedin_profile.location,
-                endorsedSkills=request.linkedin_profile.endorsedSkills,
+                endorsedSkills=endorsed_skills_list,
                 connections=request.linkedin_profile.connections,
                 followers=request.linkedin_profile.followers
             )
