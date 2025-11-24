@@ -135,10 +135,10 @@ class ChatbotAgent:
             results = db.execute(
                 text("""
                     SELECT text, 
-                           1 - (embedding <=> :query_embedding::vector) as similarity
+                           1 - (embedding <=> CAST(:query_embedding AS vector)) as similarity
                     FROM vector_embeddings
                     WHERE embedding IS NOT NULL
-                    ORDER BY embedding <=> :query_embedding::vector
+                    ORDER BY embedding <=> CAST(:query_embedding AS vector)
                     LIMIT :limit
                 """),
                 {

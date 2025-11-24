@@ -10,6 +10,7 @@ import {
   ProgressIcon,
   SettingsIcon,
   AISkillProfilerIcon,
+  StarIcon,
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { LogoutIcon } from "@/components/icons"
@@ -30,6 +31,11 @@ const sidebarItems = [
     title: "AI Skill Profiler",
     href: "/dashboard/ai-skill-profiler",
     icon: <AISkillProfilerIcon />,
+  },
+  {
+    title: "Start Journey",
+    href: "/dashboard/star-journey",
+    icon: <StarIcon />,
   },
   {
     title: "My Skills",

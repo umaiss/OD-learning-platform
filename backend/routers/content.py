@@ -106,3 +106,133 @@ async def generate_content(
             detail=f"Error generating content: {str(e)}"
         )
 
+
+class GenerateWeekQuizRequest(BaseModel):
+    learner_id: int
+    learning_plan_id: int
+    week_number: int
+
+
+class GenerateWeekQuizResponse(BaseModel):
+    learner_id: int
+    learning_plan_id: int
+    week_number: int
+    quiz: List[Dict]
+    message: str = "Week quiz generated successfully"
+
+
+@router.post("/generate-week-quiz", response_model=GenerateWeekQuizResponse, status_code=status.HTTP_201_CREATED)
+async def generate_week_quiz(
+    request: GenerateWeekQuizRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate a quiz for a specific week based on all modules in that week (requires authentication)"""
+    try:
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
+        
+        # Get learning plan
+        from db.models import LearningPlan
+        learning_plan = db.query(LearningPlan).filter(
+            LearningPlan.id == request.learning_plan_id,
+            LearningPlan.learner_id == request.learner_id
+        ).first()
+        
+        if not learning_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learning plan not found"
+            )
+        
+        # Find the week in the plan
+        plan_json = learning_plan.plan_json
+        weekly_goals = plan_json.get("weekly_goals", [])
+        week_data = None
+        for weekly_goal in weekly_goals:
+            if weekly_goal.get("week") == request.week_number:
+                week_data = weekly_goal
+                break
+        
+        if not week_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Week {request.week_number} not found in learning plan"
+            )
+        
+        # Build topic string from week goals and modules
+        modules = week_data.get("modules", [])
+        module_names = [m.get("name", "") for m in modules]
+        goals = week_data.get("goals", [])
+        
+        # Create a comprehensive topic description
+        topic = f"Week {request.week_number}: {'; '.join(goals)}. Modules: {', '.join(module_names)}"
+        
+        # Generate quiz by combining all modules in the week
+        # Create a comprehensive quiz based on all week content
+        if not modules:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No modules found in this week"
+            )
+        
+        # Generate quiz questions based on all modules in the week
+        # We'll use the content generator to create a comprehensive quiz
+        from core.llm_ollama import generate_structured
+        from agents.content_generator import QuizQuestion
+        
+        class WeekQuizOutput(BaseModel):
+            quiz: List[QuizQuestion]
+        
+        quiz_prompt = f"""Create a comprehensive quiz for Week {request.week_number} covering the following topics:
+
+Week Goals: {', '.join(goals)}
+Modules: {', '.join(module_names)}
+
+Generate 10 multiple-choice questions that test understanding of all the concepts covered in this week.
+Each question should have 4 options with one correct answer.
+Make sure questions cover different aspects of the week's content."""
+        
+        try:
+            quiz_result = await generate_structured(
+                prompt=quiz_prompt,
+                schema=WeekQuizOutput
+            )
+            
+            quiz_dict = [
+                {
+                    "question": q.question,
+                    "options": q.options,
+                    "answer": q.answer
+                }
+                for q in quiz_result.quiz
+            ]
+        except Exception as e:
+            # Fallback: generate content for the first module and use its quiz
+            first_module = modules[0]
+            result: LessonContentOutput = await content_generator.generate_content(
+                module_name=first_module.get("name", "")
+            )
+            quiz_dict = [
+                {
+                    "question": q.question,
+                    "options": q.options,
+                    "answer": q.answer
+                }
+                for q in result.quiz
+            ]
+        
+        return GenerateWeekQuizResponse(
+            learner_id=request.learner_id,
+            learning_plan_id=request.learning_plan_id,
+            week_number=request.week_number,
+            quiz=quiz_dict
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating week quiz: {str(e)}"
+        )
+

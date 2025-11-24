@@ -85,6 +85,9 @@ Remember:
     
     # First attempt
     response = await _run_async(llm.invoke, json_prompt)
+    # Handle case where response might be truncated
+    if not response or len(response.strip()) == 0:
+        raise ValueError("Empty response from LLM")
     parsed_data = _extract_json(response)
     
     try:
@@ -165,10 +168,29 @@ def _extract_json(text: str) -> dict:
             return json.loads(json_str)
         except (json.JSONDecodeError, Exception):
             # If that doesn't work, try to extract just the JSON part more carefully
-            # Look for balanced braces
+            # Look for balanced braces - handle nested objects and arrays
             brace_count = 0
+            bracket_count = 0
             start = -1
+            in_string = False
+            escape_next = False
+            
             for i, char in enumerate(text):
+                if escape_next:
+                    escape_next = False
+                    continue
+                    
+                if char == '\\':
+                    escape_next = True
+                    continue
+                    
+                if char == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                    
+                if in_string:
+                    continue
+                    
                 if char == '{':
                     if start == -1:
                         start = i
@@ -180,8 +202,19 @@ def _extract_json(text: str) -> dict:
                             return json.loads(text[start:i+1])
                         except json.JSONDecodeError:
                             pass
+                elif char == '[':
+                    if start == -1:
+                        start = i
+                    bracket_count += 1
+                elif char == ']':
+                    bracket_count -= 1
+                    if bracket_count == 0 and start != -1 and brace_count == 0:
+                        try:
+                            return json.loads(text[start:i+1])
+                        except json.JSONDecodeError:
+                            pass
             
-            # Last resort: show the error with context
+            # Last resort: show the error with context (truncate if too long)
             error_context = json_str[:500] if len(json_str) > 500 else json_str
             raise ValueError(f"Failed to parse JSON from response: {error_context}...\nError: {str(e)}") from e
 

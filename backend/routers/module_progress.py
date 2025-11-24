@@ -426,6 +426,106 @@ async def get_progress(
         )
 
 
+class CompleteWeekRequest(BaseModel):
+    """Request to mark a week as completed"""
+    learner_id: int
+    learning_plan_id: int
+    week_number: int
+
+
+class CompleteWeekResponse(BaseModel):
+    """Response after marking week as completed"""
+    learner_id: int
+    learning_plan_id: int
+    week_number: int
+    is_completed: bool
+    completed_at: datetime
+    message: str = "Week marked as completed successfully"
+
+
+@router.post("/complete-week", response_model=CompleteWeekResponse, status_code=status.HTTP_200_OK)
+async def complete_week(
+    request: CompleteWeekRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Mark a week as completed (requires authentication)"""
+    try:
+        # Verify user has access to this learner
+        learner = verify_learner_access_helper(request.learner_id, current_user, db)
+        
+        # Verify learning plan exists
+        learning_plan = db.query(LearningPlan).filter(
+            LearningPlan.id == request.learning_plan_id,
+            LearningPlan.learner_id == request.learner_id
+        ).first()
+        
+        if not learning_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learning plan not found"
+            )
+        
+        # Get or create week progress
+        week_progress = db.query(WeekProgress).filter(
+            WeekProgress.learner_id == request.learner_id,
+            WeekProgress.learning_plan_id == request.learning_plan_id,
+            WeekProgress.week_number == request.week_number
+        ).first()
+        
+        if week_progress:
+            # Update existing progress
+            week_progress.is_completed = True
+            if not week_progress.completed_at:
+                week_progress.completed_at = datetime.now(timezone.utc)
+        else:
+            # Create new week progress record
+            plan_json = learning_plan.plan_json
+            weekly_goals = plan_json.get("weekly_goals", [])
+            week_data = None
+            for weekly_goal in weekly_goals:
+                if weekly_goal.get("week") == request.week_number:
+                    week_data = weekly_goal
+                    break
+            
+            if not week_data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Week {request.week_number} not found in learning plan"
+                )
+            
+            modules = week_data.get("modules", [])
+            week_progress = WeekProgress(
+                learner_id=request.learner_id,
+                learning_plan_id=request.learning_plan_id,
+                week_number=request.week_number,
+                is_completed=True,
+                completed_at=datetime.now(timezone.utc),
+                completed_modules_count=len(modules),
+                total_modules_count=len(modules),
+                xp_earned=week_data.get("xp", 0)
+            )
+            db.add(week_progress)
+        
+        db.commit()
+        db.refresh(week_progress)
+        
+        return CompleteWeekResponse(
+            learner_id=request.learner_id,
+            learning_plan_id=request.learning_plan_id,
+            week_number=request.week_number,
+            is_completed=week_progress.is_completed,
+            completed_at=week_progress.completed_at
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error completing week: {str(e)}"
+        )
+
+
 async def _check_and_mark_week_completed(
     db: Session,
     learner_id: int,

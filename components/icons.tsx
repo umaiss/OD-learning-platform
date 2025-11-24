@@ -134,3 +134,21 @@ export function AISkillProfilerIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+export function StarIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        d="M10 1.66667L12.575 7.15833L18.3333 7.725L14.1667 11.8083L15.15 17.5L10 14.8083L4.85 17.5L5.83333 11.8083L1.66667 7.725L7.425 7.15833L10 1.66667Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+

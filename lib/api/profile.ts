@@ -92,6 +92,7 @@ export async function generateProfileAPI(
 
 interface SaveProfileRequest {
     learner_id: number
+    learning_goals: string
     ai_analysis: string
     strengths: string[]
     growth_areas: string[]

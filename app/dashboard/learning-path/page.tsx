@@ -245,8 +245,11 @@ export default function LearningPathPage() {
                     >
                         Back to Insights
                     </Button>
-                    <Button className="bg-primary hover:bg-primary/90 text-white">
-                        Start Learning
+                    <Button
+                        className="bg-primary hover:bg-primary/90 text-white"
+                        onClick={() => router.push("/dashboard/star-journey")}
+                    >
+                        Start Journey
                     </Button>
                 </div>
             </div>

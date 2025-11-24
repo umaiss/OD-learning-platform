@@ -52,7 +52,7 @@ class GenerateProfileResponse(BaseModel):
 
 class SaveProfileRequest(BaseModel):
     learner_id: int
-    learning_goals: str  # User's learning goals and career objectives
+    learning_goals: Optional[str] = ""  # User's learning goals and career objectives (optional)
     ai_analysis: str
     strengths: List[str]
     growth_areas: List[str]
@@ -145,7 +145,7 @@ async def save_profile(
             )
         
         # Update learner with profile data
-        learner.learning_goals = request.learning_goals
+        learner.learning_goals = request.learning_goals or ""
         learner.skill_map = request.skill_map
         learner.strengths = "\n".join(request.strengths)
         learner.gaps = "\n".join(request.growth_areas)
@@ -158,13 +158,15 @@ async def save_profile(
         # This enables semantic search in the chatbot
         try:
             # Create a text representation of the skill profile for embedding
-            profile_text_parts = [
-                f"Learning Goals: {request.learning_goals}",
+            profile_text_parts = []
+            if request.learning_goals:
+                profile_text_parts.append(f"Learning Goals: {request.learning_goals}")
+            profile_text_parts.extend([
                 f"AI Analysis: {request.ai_analysis}",
                 f"Strengths: {', '.join(request.strengths)}",
                 f"Growth Areas: {', '.join(request.growth_areas)}",
                 "Skill Map:"
-            ]
+            ])
             
             for skill, level in request.skill_map.items():
                 profile_text_parts.append(f"  {skill}: {level}")

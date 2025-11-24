@@ -151,9 +151,13 @@ export default function AISkillInsightsPage() {
       const storedData = sessionStorage.getItem("profileData")
       const formData = storedData ? JSON.parse(storedData) : null
 
+      // Get learning goals from form data
+      const learningGoals = formData?.learningGoals || ""
+
       // First, save the profile
       await saveProfileAPI({
         learner_id: apiResponse.learner_id,
+        learning_goals: learningGoals,
         ai_analysis: apiResponse.ai_analysis,
         strengths: apiResponse.strengths,
         growth_areas: apiResponse.growth_areas,

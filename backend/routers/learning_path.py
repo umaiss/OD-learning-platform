@@ -27,7 +27,7 @@ class WeeklyGoalResponse(BaseModel):
     """Weekly goal response structure"""
     week: int
     goals: List[str]
-    modules: List[Dict[str, str]]  # List of {name, description}
+    modules: List[Dict]  # List of {name, description, learning_materials: [...]}
     xp: int
     milestones: List[str]
 
@@ -93,12 +93,14 @@ async def generate_learning_path(
         if learning_goals is None:
             learning_goals = learner.learning_goals or ""
         
-        # Call the agent
+        # Call the agent (pass learner_id and db so agent can load skill_map if needed)
         result: LearningPathOutput = await path_generator.generate_learning_path_plan(
             skill_map=skill_map,
             experience=experience,
             role=role,
-            learning_goals=learning_goals
+            learning_goals=learning_goals,
+            learner_id=request.learner_id,
+            db=db
         )
         
         # Convert weekly goals to dict format for JSON storage and response

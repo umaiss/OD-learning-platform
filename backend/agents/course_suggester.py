@@ -106,17 +106,18 @@ class CourseSuggester:
             embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
             
             # Search for courses using vector similarity
+            # Use CAST to properly handle vector type in parameterized query
             results = db.execute(
                 text("""
                     SELECT c.id, c.title, c.url, c.platform, c.description, 
                            c.duration_hours, c.rating, c.difficulty,
-                           1 - (ve.embedding <=> :query_embedding::vector) as similarity
+                           1 - (ve.embedding <=> CAST(:query_embedding AS vector)) as similarity
                     FROM courses c
                     JOIN vector_embeddings ve ON ve.course_id = c.id
                     WHERE ve.content_type = 'course'
                       AND ve.embedding IS NOT NULL
                       AND (c.difficulty = :skill_level OR c.difficulty IS NULL)
-                    ORDER BY ve.embedding <=> :query_embedding::vector
+                    ORDER BY ve.embedding <=> CAST(:query_embedding AS vector)
                     LIMIT :limit
                 """),
                 {
@@ -141,6 +142,11 @@ class CourseSuggester:
             return suggestions
         except Exception as e:
             print(f"Error searching local database: {str(e)}")
+            # Rollback the transaction to clear the error state
+            try:
+                db.rollback()
+            except Exception:
+                pass
             # Fallback to text-based search
             return await self._text_search_database(db, query, skill_level, limit)
     
@@ -199,6 +205,11 @@ class CourseSuggester:
             return suggestions
         except Exception as e:
             print(f"Error in text search: {str(e)}")
+            # Rollback the transaction to clear the error state
+            try:
+                db.rollback()
+            except Exception:
+                pass
             return []
     
     async def _llm_suggest_courses(
